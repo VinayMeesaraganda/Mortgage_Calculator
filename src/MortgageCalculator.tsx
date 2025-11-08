@@ -467,22 +467,6 @@ const MortgageCalculator: React.FC = () => {
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2">
             Mortgage Calculator: The Ultimate Loan & Rental Property Analyzer
           </h1>
-          
-          {/* Investment Mode Showcase - Only show in Primary mode */}
-          {propertyType === 'primary' && (
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => setPropertyType('investment')}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse"
-              >
-                <span className="text-lg">🏢</span>
-                <span className="text-sm sm:text-base">Switch to Rental Property Investment Analysis Mode!</span>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </button>
-            </div>
-          )}
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
