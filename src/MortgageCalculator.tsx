@@ -464,7 +464,7 @@ const MortgageCalculator: React.FC = () => {
           
           {/* Centered Heading */}
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2">
-            The Ultimate Loan & Rental Property Analyzer: Flexible Payments, Comparison Graphs, and CSV Export
+            Mortgage Calculator: The Ultimate Loan & Rental Property Analyzer
           </h1>
         </div>
         
