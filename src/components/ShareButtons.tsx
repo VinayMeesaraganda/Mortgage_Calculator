@@ -10,7 +10,6 @@ export const ShareButtons: React.FC<ShareButtonsProps> = ({
   title = 'Check out this Advanced Mortgage Calculator'
 }) => {
   const encodedUrl = encodeURIComponent(url);
-  const encodedTitle = encodeURIComponent(title);
 
   const shareViaEmail = () => {
     const subject = encodeURIComponent('Advanced Mortgage Calculator - Multiple Payments & Refinance Analysis');
