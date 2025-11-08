@@ -25,6 +25,7 @@ import { useMortgageCalculations } from './hooks/useMortgageCalculations';
 import { HelpTooltip } from './components/HelpTooltip';
 import { MonthYearPicker } from './components/MonthYearPicker';
 import { AmortizationTable } from './components/AmortizationTable';
+import { ShareButtons } from './components/ShareButtons';
 
 // Import constants
 import { INPUT_STYLE, CARD_STYLE, CARD_SHADOW } from './constants/styles';
@@ -466,6 +467,22 @@ const MortgageCalculator: React.FC = () => {
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2">
             Mortgage Calculator: The Ultimate Loan & Rental Property Analyzer
           </h1>
+          
+          {/* Investment Mode Showcase - Only show in Primary mode */}
+          {propertyType === 'primary' && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setPropertyType('investment')}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse"
+              >
+                <span className="text-lg">🏢</span>
+                <span className="text-sm sm:text-base">Switch to Rental Property Investment Analysis Mode!</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
@@ -513,6 +530,7 @@ const MortgageCalculator: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    inputMode="decimal"
                     value={homeValueInput.displayValue}
                     onChange={(e) => homeValueInput.handleChange(e.target.value)}
                     onFocus={homeValueInput.handleFocus}
@@ -530,6 +548,7 @@ const MortgageCalculator: React.FC = () => {
                     <div className="flex-1">
                       <input
                         type="text"
+                        inputMode="decimal"
                         value={downPaymentInput.displayValue}
                         onChange={(e) => downPaymentInput.handleChange(e.target.value)}
                         onFocus={downPaymentInput.handleFocus}
@@ -543,6 +562,7 @@ const MortgageCalculator: React.FC = () => {
                     <div className="flex-1">
                       <input
                         type="text"
+                        inputMode="decimal"
                         value={editingDownPaymentPercent 
                           ? rawDownPaymentPercent
                           : ((downPayment / homeValue) * 100).toFixed(1)}
@@ -579,6 +599,7 @@ const MortgageCalculator: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    inputMode="decimal"
                     value={interestRateInput.displayValue}
                     onChange={(e) => interestRateInput.handleChange(e.target.value)}
                     onFocus={interestRateInput.handleFocus}
@@ -594,6 +615,7 @@ const MortgageCalculator: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={tenureInput.displayValue}
                     onChange={(e) => tenureInput.handleChange(e.target.value)}
                     onFocus={tenureInput.handleFocus}
@@ -2756,15 +2778,77 @@ const MortgageCalculator: React.FC = () => {
             </div>
           </div>
 
+          {/* Methodology Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-indigo-500 pb-2">
+              Our Calculation Methodology
+            </h2>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              All calculations use industry-standard financial formulas to ensure accuracy and reliability. Here's how we compute your mortgage:
+            </p>
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+              <div>
+                <h4 className="font-semibold text-slate-800 mb-1">Monthly Payment Formula:</h4>
+                <p className="text-sm text-slate-600 font-mono bg-white p-2 rounded border border-slate-300">
+                  M = P [ r(1 + r)^n ] / [ (1 + r)^n - 1 ]
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Where: M = Monthly Payment, P = Principal (loan amount), r = Monthly interest rate (annual rate / 12), n = Number of payments (years × 12)
+                </p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-800 mb-1">Amortization Schedule:</h4>
+                <p className="text-sm text-slate-600">
+                  Each payment is split between principal and interest. Early payments have more interest; later payments have more principal. Extra payments reduce principal directly, shortening the loan term and reducing total interest.
+                </p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-800 mb-1">Investment Property Metrics:</h4>
+                <ul className="text-sm text-slate-600 space-y-1 ml-4">
+                  <li>• <strong>Cash-on-Cash Return:</strong> Annual Cash Flow / Total Cash Invested × 100</li>
+                  <li>• <strong>Cap Rate:</strong> Net Operating Income (NOI) / Property Value × 100</li>
+                  <li>• <strong>Break-Even Occupancy:</strong> (Operating Expenses + Debt Service) / Gross Potential Rent × 100</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Share Section */}
+          <div className="mb-8 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+            <h3 className="text-lg font-bold text-slate-800 mb-3">Love This Calculator? Share It!</h3>
+            <ShareButtons />
+          </div>
+
           {/* Call to Action */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300 text-center">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300 text-center mb-8">
             <h3 className="text-xl font-bold text-slate-800 mb-2">Ready to Optimize Your Mortgage?</h3>
             <p className="text-slate-700 mb-4">
               Start using the calculator above to explore your options, compare loans, analyze refinancing, or evaluate investment properties. All features are 100% free with no signup required.
             </p>
-            <p className="text-sm text-slate-600 italic">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 text-base"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+              Start Your New Analysis Now
+            </button>
+            <p className="text-sm text-slate-600 italic mt-4">
               💡 Tip: Try the "Compare Loans" feature to see how different down payments or interest rates affect your monthly payment and total interest paid.
             </p>
+          </div>
+
+          {/* Footer with Last Updated */}
+          <div className="text-center text-sm text-slate-500 border-t border-slate-200 pt-4">
+            <p className="mb-2">Last Updated: November 2025</p>
+            <div className="flex justify-center gap-4 flex-wrap">
+              <a href="#privacy" className="hover:text-blue-600 transition-colors">Privacy Policy</a>
+              <span>•</span>
+              <a href="#terms" className="hover:text-blue-600 transition-colors">Terms of Service</a>
+              <span>•</span>
+              <a href="#methodology" className="hover:text-blue-600 transition-colors" onClick={(e) => { e.preventDefault(); document.querySelector('h2:has-text("Calculation Methodology")')?.scrollIntoView({ behavior: 'smooth' }); }}>Methodology</a>
+            </div>
           </div>
 
         </div>
