@@ -190,13 +190,13 @@ const MortgageCalculator: React.FC = () => {
   const capRate = homeValueInput.value > 0 ? (netOperatingIncome / homeValueInput.value) * 100 : 0;
   const breakEvenOccupancy = monthlyRentInput.value > 0 ? ((paymentAmount + totalOperatingExpenses) / monthlyRentInput.value) * 100 : 0;
   
-  // Reserved for future investment analysis features (5-year and 10-year projections)
-  // const futureValue5Year = homeValueInput.value * Math.pow(1 + propertyAppreciationRate / 100, 5);
-  // const futureValue10Year = homeValueInput.value * Math.pow(1 + propertyAppreciationRate / 100, 10);
-  // const principalPaid5Year = calculations.schedule.slice(0, Math.min(60, calculations.schedule.length)).reduce((sum, payment) => sum + payment.principal, 0);
-  // const principalPaid10Year = calculations.schedule.slice(0, Math.min(120, calculations.schedule.length)).reduce((sum, payment) => sum + payment.principal, 0);
-  // const equity5Year = (futureValue5Year - loanAmount) + principalPaid5Year;
-  // const equity10Year = (futureValue10Year - loanAmount) + principalPaid10Year;
+  // Rental Income Projections (based on appreciation rate for rental income growth)
+  const futureMonthlyRent5Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 5);
+  const futureMonthlyRent10Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 10);
+  const futureMonthlyRent15Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 15);
+  const rentIncrease5Year = futureMonthlyRent5Year - monthlyRentInput.value;
+  const rentIncrease10Year = futureMonthlyRent10Year - monthlyRentInput.value;
+  const rentIncrease15Year = futureMonthlyRent15Year - monthlyRentInput.value;
   // const totalReturn5Year = (annualCashFlow * 5) + (futureValue5Year - homeValueInput.value);
   // const totalReturn10Year = (annualCashFlow * 10) + (futureValue10Year - homeValueInput.value);
   
@@ -431,42 +431,42 @@ const MortgageCalculator: React.FC = () => {
         
         {/* Property Type Toggle and Heading */}
         <div className="mb-3 sm:mb-4 animate-slideDown">
-          {/* Toggle - Top Right */}
-          <div className="flex justify-end mb-2">
-            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
-            <button
-              onClick={() => setPropertyType('primary')}
-              className={`
-                flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                ${propertyType === 'primary' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                }
-              `}
-            >
-              <span className="text-sm sm:text-base">🏠</span>
-              <span className="hidden sm:inline">Primary</span>
-            </button>
-            <button
-              onClick={() => setPropertyType('investment')}
-              className={`
-                flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                ${propertyType === 'investment' 
-                  ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                }
-              `}
-            >
-              <span className="text-sm sm:text-base">🏢</span>
-              <span className="hidden sm:inline">Investment</span>
-            </button>
-          </div>
-          </div>
-          
           {/* Centered Heading */}
-          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2">
+          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2 mb-3">
             Mortgage Calculator: The Ultimate Loan & Rental Property Analyzer
           </h1>
+          
+          {/* Toggle - Below Header, Centered */}
+          <div className="flex justify-center">
+            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+              <button
+                onClick={() => setPropertyType('primary')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'primary' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base">🏠</span>
+                <span className="hidden sm:inline">Primary</span>
+              </button>
+              <button
+                onClick={() => setPropertyType('investment')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'investment' 
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base">🏢</span>
+                <span className="hidden sm:inline">Investment</span>
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
@@ -482,29 +482,37 @@ const MortgageCalculator: React.FC = () => {
                     Loan Details
                     <div className="absolute -bottom-0.5 left-0 w-12 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 animate-pulse"></div>
                   </h2>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={showScenarioComparison}
-                        onChange={(e) => setShowScenarioComparison(e.target.checked)}
-                        className="w-3.5 h-3.5 text-purple-600 border-purple-300 rounded focus:ring-purple-500 cursor-pointer"
-                      />
-                      <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wide group-hover:text-purple-700 transition-colors whitespace-nowrap">
-                        Compare Loans
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={showRefinanceAnalysis}
-                        onChange={(e) => setShowRefinanceAnalysis(e.target.checked)}
-                        className="w-3.5 h-3.5 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
-                      />
-                      <span className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide group-hover:text-orange-700 transition-colors whitespace-nowrap">
-                        Refi Calculator
-                      </span>
-                    </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowScenarioComparison(!showScenarioComparison)}
+                      className={`
+                        flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition-all duration-200 whitespace-nowrap border-2 shadow-sm
+                        ${showScenarioComparison
+                          ? 'bg-purple-600 text-white border-purple-700 shadow-md'
+                          : 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100 hover:border-purple-400'
+                        }
+                      `}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <span>Compare Loans</span>
+                    </button>
+                    <button
+                      onClick={() => setShowRefinanceAnalysis(!showRefinanceAnalysis)}
+                      className={`
+                        flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition-all duration-200 whitespace-nowrap border-2 shadow-sm
+                        ${showRefinanceAnalysis
+                          ? 'bg-orange-600 text-white border-orange-700 shadow-md'
+                          : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100 hover:border-orange-400'
+                        }
+                      `}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Refi Calculator</span>
+                    </button>
                   </div>
                 </div>
                 
@@ -1173,7 +1181,7 @@ const MortgageCalculator: React.FC = () => {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[9px] font-semibold text-slate-700 mb-0.5">Appreciation Rate</label>
+                          <label className="block text-[9px] font-semibold text-slate-700 mb-0.5">Rental Growth Rate</label>
                           <div className="relative">
                             <input
                               type="number"
@@ -1192,6 +1200,36 @@ const MortgageCalculator: React.FC = () => {
                           <p className="text-xs font-bold text-green-700">
                             {formatCurrency(monthlyRentInput.value * (1 - vacancyRate / 100))}/mo
                           </p>
+                        </div>
+                        
+                        {/* Rental Income Projections */}
+                        <div className="mt-3 pt-2 border-t border-green-200">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-[9px] font-semibold text-slate-700 flex items-center gap-1">
+                              📊 Rental Projections
+                              <HelpTooltip content={`Based on ${propertyAppreciationRate}% annual rental growth`} />
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <div className="p-1.5 rounded-md border border-green-200 bg-green-50/50">
+                              <div className="text-[7px] text-slate-600 mb-0.5">5Y</div>
+                              <div className="text-[10px] font-bold text-green-700">{formatCurrencyCompact(futureMonthlyRent5Year)}/mo</div>
+                              <div className="text-[7px] text-slate-500 mt-0.5">+{formatCurrencyCompact(rentIncrease5Year)}</div>
+                            </div>
+                            <div className="p-1.5 rounded-md border border-green-300 bg-green-50">
+                              <div className="text-[7px] text-slate-600 mb-0.5">10Y</div>
+                              <div className="text-[10px] font-bold text-green-700">{formatCurrencyCompact(futureMonthlyRent10Year)}/mo</div>
+                              <div className="text-[7px] text-slate-500 mt-0.5">+{formatCurrencyCompact(rentIncrease10Year)}</div>
+                            </div>
+                            <div className="p-1.5 rounded-md border border-green-400 bg-green-100/50">
+                              <div className="text-[7px] text-slate-600 mb-0.5">15Y</div>
+                              <div className="text-[10px] font-bold text-green-700">{formatCurrencyCompact(futureMonthlyRent15Year)}/mo</div>
+                              <div className="text-[7px] text-slate-500 mt-0.5">+{formatCurrencyCompact(rentIncrease15Year)}</div>
+                            </div>
+                          </div>
+                          <div className="mt-1 text-[7px] text-slate-500 text-center">
+                            Growth: {propertyAppreciationRate}%/yr
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1290,10 +1328,15 @@ const MortgageCalculator: React.FC = () => {
                         </div>
                       </div>
                       
-                      {/* Cost Breakdown for Investment */}
+                      {/* Cost Breakdown for Investment - Aligned with Rental Projections */}
                       <div className="mt-3 pt-2 border-t border-slate-200">
-                        <p className="text-[9px] font-semibold text-slate-600 mb-1">Loan Cost Breakdown:</p>
-                        <div className="flex h-4 rounded-md overflow-hidden shadow-inner border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-[9px] font-semibold text-slate-700 flex items-center gap-1">
+                            💰 Loan Cost Breakdown
+                            <HelpTooltip content="Shows how your total payment is divided between principal and interest" />
+                          </p>
+                        </div>
+                        <div className="flex h-4 rounded-md overflow-hidden shadow-inner border border-slate-200 mb-1">
                           <div 
                             className="bg-gradient-to-r from-emerald-400 to-emerald-500 flex items-center justify-center text-[8px] font-bold text-white"
                             style={{ width: `${((loanAmount / totalPaid) * 100).toFixed(1)}%` }}
@@ -1307,11 +1350,15 @@ const MortgageCalculator: React.FC = () => {
                             {((totalInterest / totalPaid) * 100).toFixed(0)}%
                           </div>
                         </div>
-                        <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+                        <div className="flex justify-between text-[7px] text-slate-600">
                           <span>Principal: {formatCurrencyCompact(loanAmount)}</span>
                           <span>Interest: {formatCurrencyCompact(totalInterest)}</span>
                         </div>
+                        <div className="mt-1 text-[7px] text-slate-500 text-center">
+                          Total: {formatCurrencyCompact(totalPaid)}
+                        </div>
                       </div>
+                      
                     </div>
                   </div>
                 </>
