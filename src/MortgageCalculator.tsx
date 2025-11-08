@@ -450,7 +450,7 @@ const MortgageCalculator: React.FC = () => {
                 `}
               >
                 <span className="text-sm sm:text-base">🏠</span>
-                <span className="hidden sm:inline">Primary</span>
+                <span>Primary</span>
               </button>
               <button
                 onClick={() => setPropertyType('investment')}
@@ -463,7 +463,7 @@ const MortgageCalculator: React.FC = () => {
                 `}
               >
                 <span className="text-sm sm:text-base">🏢</span>
-                <span className="hidden sm:inline">Investment</span>
+                <span>Investment</span>
               </button>
             </div>
           </div>
@@ -1824,14 +1824,14 @@ const MortgageCalculator: React.FC = () => {
                 <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[640px]">
                   <thead>
                     <tr className="border-b-2 border-purple-200">
-                      <th className="text-left p-2 font-semibold text-slate-700 bg-slate-50 sticky left-0">Metric</th>
-                      <th className="p-2 font-semibold text-purple-700 bg-amber-50 border-l-2 border-amber-300">
+                      <th className="text-left p-2 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-20 min-w-[120px]">Metric</th>
+                      <th className="p-2 font-semibold text-purple-700 bg-amber-50 border-l-2 border-amber-300 min-w-[150px]">
                         <div className="flex flex-col items-center">
                           <span>Current Loan</span>
                           <span className="text-[10px] text-amber-600 font-normal">⭐ Your Choice</span>
                         </div>
                       </th>
-                      <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200">
+                      <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200 min-w-[150px]">
                         <div className="flex flex-col items-center gap-2">
                           <span>Scenario 2</span>
                           <button
@@ -1850,7 +1850,7 @@ const MortgageCalculator: React.FC = () => {
                           </button>
                         </div>
                       </th>
-                      <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200">
+                      <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200 min-w-[150px]">
                         <div className="flex flex-col items-center gap-2">
                           <span>Scenario 3</span>
                           <button
@@ -1874,11 +1874,11 @@ const MortgageCalculator: React.FC = () => {
                   <tbody>
                     {/* Home Value */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Home Value</td>
-                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Home Value</td>
+                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(homeValueInput.value)}
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioB.homeValue.toLocaleString()}
@@ -1890,7 +1890,7 @@ const MortgageCalculator: React.FC = () => {
                           placeholder="$"
                         />
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioC.homeValue.toLocaleString()}
@@ -1906,14 +1906,14 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Down Payment */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Down Payment</td>
-                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Down Payment</td>
+                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(downPaymentInput.value)}
                         <div className="text-[10px] text-slate-500">
                           {((downPaymentInput.value / homeValueInput.value) * 100).toFixed(1)}%
                         </div>
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <div className="flex items-center gap-1 justify-center">
                           <input
                             type="text"
@@ -1955,7 +1955,7 @@ const MortgageCalculator: React.FC = () => {
                           />
                         </div>
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <div className="flex items-center gap-1 justify-center">
                           <input
                             type="text"
@@ -2001,25 +2001,25 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Loan Amount (Calculated) */}
                     <tr className="border-b-2 border-purple-200 bg-purple-50/30">
-                      <td className="p-2 text-slate-700 font-semibold bg-slate-50 sticky left-0">💰 Loan Amount</td>
-                      <td className="p-2 text-center font-bold text-amber-700 bg-amber-50/50 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-700 font-semibold bg-slate-50 sticky left-0 z-10 min-w-[120px]">💰 Loan Amount</td>
+                      <td className="p-2 text-center font-bold text-amber-700 bg-amber-50/50 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(loanAmount)}
                       </td>
-                      <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100">
+                      <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100 min-w-[150px]">
                         {formatCurrency(scenarioBCalc.loanAmount)}
                       </td>
-                      <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100">
+                      <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100 min-w-[150px]">
                         {formatCurrency(scenarioCCalc.loanAmount)}
                       </td>
                     </tr>
 
                     {/* Interest Rate */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Interest Rate</td>
-                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Interest Rate</td>
+                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {interestRate}%
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioB.interestRate}
@@ -2031,7 +2031,7 @@ const MortgageCalculator: React.FC = () => {
                           placeholder="%"
                         />
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioC.interestRate}
@@ -2047,11 +2047,11 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Loan Term */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Loan Term</td>
-                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Loan Term</td>
+                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {tenure} years
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioB.tenure}
@@ -2063,7 +2063,7 @@ const MortgageCalculator: React.FC = () => {
                           placeholder="years"
                         />
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <input
                           type="text"
                           value={scenarioC.tenure}
@@ -2079,11 +2079,11 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Payment Type */}
                     <tr className="border-b-2 border-purple-200 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Payment Type</td>
-                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Payment Type</td>
+                      <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'}
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <select
                           value={scenarioB.paymentType}
                           onChange={(e) => setScenarioB({ ...scenarioB, paymentType: e.target.value as PaymentType })}
@@ -2093,7 +2093,7 @@ const MortgageCalculator: React.FC = () => {
                           <option value="biweekly">Bi-weekly</option>
                         </select>
                       </td>
-                      <td className="p-2 border-l-2 border-purple-100">
+                      <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
                         <select
                           value={scenarioC.paymentType}
                           onChange={(e) => setScenarioC({ ...scenarioC, paymentType: e.target.value as PaymentType })}
@@ -2114,18 +2114,18 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Monthly Payment */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Monthly Payment</td>
-                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Monthly Payment</td>
+                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(currentScenarioBase.payment)}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioBCalc.payment < currentScenarioBase.payment ? 'text-green-700 bg-green-50' : 
                         scenarioBCalc.payment > currentScenarioBase.payment ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
                         {formatCurrency(scenarioBCalc.payment)}
                         {scenarioBCalc.payment < currentScenarioBase.payment && <span className="ml-1">✓</span>}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioCCalc.payment < currentScenarioBase.payment ? 'text-green-700 bg-green-50' : 
                         scenarioCCalc.payment > currentScenarioBase.payment ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
@@ -2136,18 +2136,18 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Total Interest */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Total Interest Paid</td>
-                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Total Interest Paid</td>
+                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(currentScenarioBase.totalInterest)}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioBCalc.totalInterest < currentScenarioBase.totalInterest ? 'text-green-700 bg-green-50' : 
                         scenarioBCalc.totalInterest > currentScenarioBase.totalInterest ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
                         {formatCurrency(scenarioBCalc.totalInterest)}
                         {scenarioBCalc.totalInterest < currentScenarioBase.totalInterest && <span className="ml-1">💚</span>}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioCCalc.totalInterest < currentScenarioBase.totalInterest ? 'text-green-700 bg-green-50' : 
                         scenarioCCalc.totalInterest > currentScenarioBase.totalInterest ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
@@ -2158,17 +2158,17 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Total Amount Paid */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Total Amount Paid</td>
-                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Total Amount Paid</td>
+                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {formatCurrency(currentScenarioBase.totalPaid)}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioBCalc.totalPaid < currentScenarioBase.totalPaid ? 'text-green-700 bg-green-50' : 
                         scenarioBCalc.totalPaid > currentScenarioBase.totalPaid ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
                         {formatCurrency(scenarioBCalc.totalPaid)}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioCCalc.totalPaid < currentScenarioBase.totalPaid ? 'text-green-700 bg-green-50' : 
                         scenarioCCalc.totalPaid > currentScenarioBase.totalPaid ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
@@ -2178,18 +2178,18 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Payoff Time */}
                     <tr className="border-b-2 border-purple-200 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0">Time to Pay Off</td>
-                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200">
+                      <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Time to Pay Off</td>
+                      <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
                         {currentScenarioBase.tenure} years
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioBCalc.tenure < currentScenarioBase.tenure ? 'text-green-700 bg-green-50' : 
                         scenarioBCalc.tenure > currentScenarioBase.tenure ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
                         {scenarioBCalc.tenure} years
                         {scenarioBCalc.tenure < currentScenarioBase.tenure && <span className="ml-1">⚡</span>}
                       </td>
-                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 ${
+                      <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${
                         scenarioCCalc.tenure < currentScenarioBase.tenure ? 'text-green-700 bg-green-50' : 
                         scenarioCCalc.tenure > currentScenarioBase.tenure ? 'text-red-700 bg-red-50' : 'text-slate-800'
                       }`}>
@@ -2200,11 +2200,11 @@ const MortgageCalculator: React.FC = () => {
 
                     {/* Savings vs Current */}
                     <tr className="bg-gradient-to-r from-purple-50 to-indigo-50 font-bold">
-                      <td className="p-3 text-purple-800 bg-slate-50 sticky left-0">💰 Savings vs Current</td>
-                      <td className="p-3 text-center text-amber-700 bg-amber-100 border-l-2 border-amber-300">
+                      <td className="p-3 text-purple-800 bg-slate-50 sticky left-0 z-10 min-w-[120px]">💰 Savings vs Current</td>
+                      <td className="p-3 text-center text-amber-700 bg-amber-100 border-l-2 border-amber-300 min-w-[150px]">
                         Current Choice
                       </td>
-                      <td className={`p-3 text-center border-l-2 border-purple-200 ${
+                      <td className={`p-3 text-center border-l-2 border-purple-200 min-w-[150px] ${
                         scenarioBCalc.totalInterest < currentScenarioBase.totalInterest 
                           ? 'bg-gradient-to-br from-green-100 to-emerald-100 text-green-800' 
                           : 'bg-gradient-to-br from-red-100 to-rose-100 text-red-800'
@@ -2214,7 +2214,7 @@ const MortgageCalculator: React.FC = () => {
                           : `❌ Pay ${formatCurrency(scenarioBCalc.totalInterest - currentScenarioBase.totalInterest)} more`
                         }
                       </td>
-                      <td className={`p-3 text-center border-l-2 border-purple-200 ${
+                      <td className={`p-3 text-center border-l-2 border-purple-200 min-w-[150px] ${
                         scenarioCCalc.totalInterest < currentScenarioBase.totalInterest 
                           ? 'bg-gradient-to-br from-green-100 to-emerald-100 text-green-800' 
                           : 'bg-gradient-to-br from-red-100 to-rose-100 text-red-800'
@@ -2508,9 +2508,9 @@ const MortgageCalculator: React.FC = () => {
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-orange-600 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="text-center p-3 bg-orange-50/30 rounded-lg border border-orange-200">
+                    <div className="text-2xl sm:text-3xl font-bold text-orange-600 mb-1 break-words">
                       {refinanceCalc.breakEvenYears.toFixed(1)}
                     </div>
                     <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">Years to Break Even</div>
@@ -2518,8 +2518,8 @@ const MortgageCalculator: React.FC = () => {
                       ({Math.ceil(refinanceCalc.breakEvenMonths)} months)
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600 mb-1">
+                  <div className="text-center p-3 bg-green-50/30 rounded-lg border border-green-200">
+                    <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-1 break-words">
                       {formatCurrency(refinanceCalc.monthlySavings)}
                     </div>
                     <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">Monthly Savings</div>
@@ -2527,8 +2527,8 @@ const MortgageCalculator: React.FC = () => {
                       Lower payment
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600 mb-1">
+                  <div className="text-center p-3 bg-blue-50/30 rounded-lg border border-blue-200">
+                    <div className="text-2xl sm:text-3xl font-bold text-blue-600 mb-1 break-words">
                       {formatCurrency(Math.abs(refinanceCalc.totalSavings))}
                     </div>
                     <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">
