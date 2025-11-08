@@ -76,6 +76,18 @@ const MortgageCalculator: React.FC = () => {
     newExtraPayment: 0 // Extra payment on new loan
   });
   
+  // Track raw input values for interest rate fields to allow proper decimal entry
+  const [editingCurrentRate, setEditingCurrentRate] = useState(false);
+  const [rawCurrentRate, setRawCurrentRate] = useState('');
+  const [editingNewRate, setEditingNewRate] = useState(false);
+  const [rawNewRate, setRawNewRate] = useState('');
+  
+  // Track raw input values for down payment percentage in compare loans modal
+  const [editingScenarioBPercent, setEditingScenarioBPercent] = useState(false);
+  const [rawScenarioBPercent, setRawScenarioBPercent] = useState('');
+  const [editingScenarioCPercent, setEditingScenarioCPercent] = useState(false);
+  const [rawScenarioCPercent, setRawScenarioCPercent] = useState('');
+  
   // Property Type (Primary Home vs Investment)
   const [propertyType, setPropertyType] = useState<'primary' | 'investment'>('primary');
   
@@ -416,15 +428,11 @@ const MortgageCalculator: React.FC = () => {
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-transparent via-slate-400 to-transparent mx-auto mb-2 sm:mb-3 animate-slideIn"></div>
         
-        {/* Property Type Toggle - Compact & Top Right */}
-        <div className="relative mb-3 sm:mb-4 animate-slideDown">
-          {/* Centered Heading */}
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-slate-800 text-center tracking-tight animate-fadeIn">
-            Mortgage Calculator
-          </h1>
-          
-          {/* Compact Toggle - Top Right */}
-          <div className="absolute top-0 right-0 bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+        {/* Property Type Toggle and Heading */}
+        <div className="mb-3 sm:mb-4 animate-slideDown">
+          {/* Toggle - Top Right */}
+          <div className="flex justify-end mb-2">
+            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
             <button
               onClick={() => setPropertyType('primary')}
               className={`
@@ -452,6 +460,12 @@ const MortgageCalculator: React.FC = () => {
               <span className="hidden sm:inline">Investment</span>
             </button>
           </div>
+          </div>
+          
+          {/* Centered Heading */}
+          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2">
+            The Ultimate Loan & Rental Property Analyzer: Flexible Payments, Comparison Graphs, and CSV Export
+          </h1>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
@@ -1847,33 +1861,87 @@ const MortgageCalculator: React.FC = () => {
                         </div>
                       </td>
                       <td className="p-2 border-l-2 border-purple-100">
-                        <input
-                          type="text"
-                          value={scenarioB.downPayment.toLocaleString()}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9]/g, '');
-                            setScenarioB({ ...scenarioB, downPayment: val === '' ? 0 : Number(val) });
-                          }}
-                          className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                          placeholder="$"
-                        />
-                        <div className="text-[10px] text-slate-500 text-center mt-0.5">
-                          {scenarioB.homeValue > 0 ? ((scenarioB.downPayment / scenarioB.homeValue) * 100).toFixed(1) : '0.0'}%
+                        <div className="flex items-center gap-1 justify-center">
+                          <input
+                            type="text"
+                            value={scenarioB.downPayment.toLocaleString()}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              setScenarioB({ ...scenarioB, downPayment: val === '' ? 0 : Number(val) });
+                            }}
+                            className="flex-1 px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
+                            placeholder="$"
+                          />
+                          <span className="text-purple-400 text-sm">|</span>
+                          <input
+                            type="text"
+                            value={editingScenarioBPercent 
+                              ? rawScenarioBPercent
+                              : (scenarioB.homeValue > 0 ? ((scenarioB.downPayment / scenarioB.homeValue) * 100).toFixed(1) : '0.0')}
+                            onChange={(e) => {
+                              setEditingScenarioBPercent(true);
+                              const cleaned = e.target.value.replace(/,/g, '');
+                              setRawScenarioBPercent(cleaned);
+                              if (cleaned && /^\d*\.?\d*$/.test(cleaned)) {
+                                const percent = Number(cleaned);
+                                if (!isNaN(percent) && percent >= 0 && percent <= 100) {
+                                  setScenarioB({ ...scenarioB, downPayment: (scenarioB.homeValue * percent) / 100 });
+                                }
+                              }
+                            }}
+                            onFocus={() => {
+                              setEditingScenarioBPercent(true);
+                              setRawScenarioBPercent(scenarioB.homeValue > 0 ? ((scenarioB.downPayment / scenarioB.homeValue) * 100).toFixed(1) : '0.0');
+                            }}
+                            onBlur={() => {
+                              setEditingScenarioBPercent(false);
+                              setRawScenarioBPercent('');
+                            }}
+                            className="w-16 px-1 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
+                            placeholder="%"
+                          />
                         </div>
                       </td>
                       <td className="p-2 border-l-2 border-purple-100">
-                        <input
-                          type="text"
-                          value={scenarioC.downPayment.toLocaleString()}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9]/g, '');
-                            setScenarioC({ ...scenarioC, downPayment: val === '' ? 0 : Number(val) });
-                          }}
-                          className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                          placeholder="$"
-                        />
-                        <div className="text-[10px] text-slate-500 text-center mt-0.5">
-                          {scenarioC.homeValue > 0 ? ((scenarioC.downPayment / scenarioC.homeValue) * 100).toFixed(1) : '0.0'}%
+                        <div className="flex items-center gap-1 justify-center">
+                          <input
+                            type="text"
+                            value={scenarioC.downPayment.toLocaleString()}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              setScenarioC({ ...scenarioC, downPayment: val === '' ? 0 : Number(val) });
+                            }}
+                            className="flex-1 px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
+                            placeholder="$"
+                          />
+                          <span className="text-purple-400 text-sm">|</span>
+                          <input
+                            type="text"
+                            value={editingScenarioCPercent 
+                              ? rawScenarioCPercent
+                              : (scenarioC.homeValue > 0 ? ((scenarioC.downPayment / scenarioC.homeValue) * 100).toFixed(1) : '0.0')}
+                            onChange={(e) => {
+                              setEditingScenarioCPercent(true);
+                              const cleaned = e.target.value.replace(/,/g, '');
+                              setRawScenarioCPercent(cleaned);
+                              if (cleaned && /^\d*\.?\d*$/.test(cleaned)) {
+                                const percent = Number(cleaned);
+                                if (!isNaN(percent) && percent >= 0 && percent <= 100) {
+                                  setScenarioC({ ...scenarioC, downPayment: (scenarioC.homeValue * percent) / 100 });
+                                }
+                              }
+                            }}
+                            onFocus={() => {
+                              setEditingScenarioCPercent(true);
+                              setRawScenarioCPercent(scenarioC.homeValue > 0 ? ((scenarioC.downPayment / scenarioC.homeValue) * 100).toFixed(1) : '0.0');
+                            }}
+                            onBlur={() => {
+                              setEditingScenarioCPercent(false);
+                              setRawScenarioCPercent('');
+                            }}
+                            className="w-16 px-1 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
+                            placeholder="%"
+                          />
                         </div>
                       </td>
                     </tr>
@@ -2179,10 +2247,30 @@ const MortgageCalculator: React.FC = () => {
                       <label className="block text-xs font-medium text-slate-600 mb-1">Current Interest Rate (%)</label>
                       <input
                         type="text"
-                        value={refinanceData.currentRate}
+                        value={editingCurrentRate ? rawCurrentRate : (refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString())}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          setRefinanceData({ ...refinanceData, currentRate: val === '' ? 0 : Number(val) });
+                          setEditingCurrentRate(true);
+                          const cleaned = e.target.value.replace(/[^0-9.]/g, '');
+                          // Prevent multiple decimal points
+                          const parts = cleaned.split('.');
+                          const validValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
+                          setRawCurrentRate(validValue);
+                          if (validValue === '' || validValue === '.') {
+                            setRefinanceData({ ...refinanceData, currentRate: 0 });
+                          } else if (/^\d*\.?\d*$/.test(validValue)) {
+                            const num = Number(validValue);
+                            if (!isNaN(num) && num >= 0) {
+                              setRefinanceData({ ...refinanceData, currentRate: num });
+                            }
+                          }
+                        }}
+                        onFocus={() => {
+                          setEditingCurrentRate(true);
+                          setRawCurrentRate(refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString());
+                        }}
+                        onBlur={() => {
+                          setEditingCurrentRate(false);
+                          setRawCurrentRate('');
                         }}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
                         placeholder="7.5"
@@ -2248,10 +2336,30 @@ const MortgageCalculator: React.FC = () => {
                       <label className="block text-xs font-medium text-slate-600 mb-1">New Interest Rate (%)</label>
                       <input
                         type="text"
-                        value={refinanceData.newRate}
+                        value={editingNewRate ? rawNewRate : (refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString())}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          setRefinanceData({ ...refinanceData, newRate: val === '' ? 0 : Number(val) });
+                          setEditingNewRate(true);
+                          const cleaned = e.target.value.replace(/[^0-9.]/g, '');
+                          // Prevent multiple decimal points
+                          const parts = cleaned.split('.');
+                          const validValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
+                          setRawNewRate(validValue);
+                          if (validValue === '' || validValue === '.') {
+                            setRefinanceData({ ...refinanceData, newRate: 0 });
+                          } else if (/^\d*\.?\d*$/.test(validValue)) {
+                            const num = Number(validValue);
+                            if (!isNaN(num) && num >= 0) {
+                              setRefinanceData({ ...refinanceData, newRate: num });
+                            }
+                          }
+                        }}
+                        onFocus={() => {
+                          setEditingNewRate(true);
+                          setRawNewRate(refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString());
+                        }}
+                        onBlur={() => {
+                          setEditingNewRate(false);
+                          setRawNewRate('');
                         }}
                         className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
                         placeholder="6.0"
@@ -2505,6 +2613,162 @@ const MortgageCalculator: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* SEO Content Section */}
+      <div className="max-w-6xl mx-auto mt-12 px-4 pb-12">
+        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10 border border-slate-200">
+          
+          {/* Introduction */}
+          <div className="prose prose-slate max-w-none mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-blue-500 pb-2">
+              Why Choose Our Advanced Mortgage Calculator?
+            </h2>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Most standard mortgage calculators fall short when you need real-world flexibility. Whether you're planning to make <strong>multiple one-time lump-sum payments</strong>, comparing <strong>three different loan offers side-by-side</strong>, or analyzing a <strong>rental property investment</strong>, traditional calculators simply can't keep up. Our comprehensive mortgage and refinance calculator was built to solve these exact problems, giving you the power to model complex payment scenarios that match your actual financial situation.
+            </p>
+            <p className="text-slate-700 leading-relaxed">
+              From <strong>bi-weekly mortgage payments</strong> to <strong>extra monthly contributions</strong>, and from <strong>refinance break-even analysis</strong> to <strong>investment property cash flow calculations</strong>, this tool provides everything you need to make informed decisions about your home loan or rental property purchase.
+            </p>
+          </div>
+
+          {/* Pain Points Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-orange-500 pb-2">
+              The Problems with Standard Calculators
+            </h2>
+            
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 mt-6">❌ Can't Handle Multiple Payment Scenarios</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Standard calculators limit you to one extra payment type. What if you receive a year-end bonus in December, a tax refund in April, and want to add $200 monthly? Our calculator supports <strong>unlimited one-time payments</strong> plus <strong>recurring extra payments</strong> (monthly or bi-weekly), giving you a true picture of your accelerated payoff timeline.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3">❌ No Side-by-Side Loan Comparison</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Shopping for the best mortgage rate? Most calculators force you to manually track multiple scenarios in a spreadsheet. Our <strong>Compare Loans</strong> feature lets you evaluate three different loan scenarios simultaneously—comparing monthly payments, total interest, and payoff timelines in one interactive comparison table with visual graphs.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3">❌ Missing Refinance Break-Even Analysis</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Considering refinancing but unsure if closing costs are worth it? Our <strong>refinance calculator</strong> instantly shows your break-even point, total savings, and provides clear recommendations on whether refinancing makes financial sense based on your specific situation.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3">❌ Zero Investment Property Support</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Evaluating a rental property? Traditional mortgage calculators ignore rental income, vacancy rates, property management fees, and operating expenses. Our dedicated <strong>Investment Property mode</strong> calculates critical metrics like <strong>Cash-on-Cash Return</strong>, <strong>Cap Rate</strong>, <strong>Net Operating Income (NOI)</strong>, and <strong>Break-Even Occupancy</strong>—giving you institutional-grade analysis for free.
+            </p>
+          </div>
+
+          {/* Solutions Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">
+              Our Powerful Solutions
+            </h2>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 mt-6 flex items-center gap-2">
+              <span className="text-2xl">💰</span> Multiple One-Time Payments & Flexible Extra Payments
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Add unlimited lump-sum payments at any date, plus set up recurring extra payments (monthly or bi-weekly). See exactly how each additional payment accelerates your mortgage payoff and reduces total interest. Our calculator tracks every dollar and shows you the cumulative impact on your loan timeline.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-2xl">📊</span> Three-Way Loan Comparison with Interactive Graphs
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Compare your current scenario against two alternative loan offers. Adjust home values, down payments, interest rates, and loan terms—then instantly see which option saves you the most money. Visual bar graphs highlight the differences in monthly payments, total interest, and payoff dates. Perfect for shopping multiple lenders or deciding between 15-year vs. 30-year mortgages.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-2xl">🔄</span> Instant Refinancing Break-Even Recommendation
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Enter your current loan details and new refinance offer, including closing costs. Our calculator instantly tells you: How many months until you break even? What's your total savings? Should you refinance or stay put? It even accounts for your current remaining balance and projected payoff date, giving you a personalized, data-driven recommendation.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-2xl">🏘️</span> Full Rental Property Investment Analysis
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Toggle to <strong>Investment Property mode</strong> to unlock rental-specific features. Input monthly rent, vacancy rate, property management percentage, maintenance costs, and other operating expenses. The calculator automatically computes your monthly cash flow, annual cash flow, Cash-on-Cash Return, Cap Rate, NOI, and Break-Even Occupancy percentage—all the metrics real estate investors need to evaluate deals.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-2xl">📅</span> Bi-Weekly Payment Optimization
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Switch from monthly to bi-weekly payments and watch your payoff timeline shrink. By making 26 half-payments per year (equivalent to 13 full monthly payments), you can save years off your mortgage and thousands in interest. Our calculator shows the exact savings and new payoff date.
+            </p>
+
+            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-2xl">📥</span> Complete Amortization Schedule with CSV Export
+            </h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              View your complete amortization schedule month-by-month, including principal, interest, extra payments, and remaining balance. Need to share it with your financial advisor or import into Excel? Export the entire schedule to CSV with one click. Every payment, every extra contribution, every detail—all downloadable.
+            </p>
+          </div>
+
+          {/* Feature Highlights */}
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-purple-500 pb-2">
+              Key Features at a Glance
+            </h2>
+            <div className="grid sm:grid-cols-2 gap-4 mt-4">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2">🏠 Primary Home Mode</h4>
+                <ul className="text-sm text-slate-700 space-y-1">
+                  <li>• Monthly or bi-weekly payments</li>
+                  <li>• Multiple one-time extra payments</li>
+                  <li>• Recurring extra payment tracking</li>
+                  <li>• Full amortization schedule</li>
+                  <li>• Interest savings visualization</li>
+                </ul>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <h4 className="font-semibold text-orange-900 mb-2">🏘️ Investment Property Mode</h4>
+                <ul className="text-sm text-slate-700 space-y-1">
+                  <li>• Rental income with vacancy rate</li>
+                  <li>• Operating expense tracking</li>
+                  <li>• Cash-on-Cash Return calculation</li>
+                  <li>• Cap Rate & NOI analysis</li>
+                  <li>• Break-Even Occupancy metric</li>
+                </ul>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <h4 className="font-semibold text-purple-900 mb-2">📊 Loan Comparison</h4>
+                <ul className="text-sm text-slate-700 space-y-1">
+                  <li>• Compare 3 scenarios side-by-side</li>
+                  <li>• Visual comparison graphs</li>
+                  <li>• Instant "Apply to Calculator" button</li>
+                  <li>• Home value & down payment inputs</li>
+                  <li>• Total interest comparison</li>
+                </ul>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h4 className="font-semibold text-green-900 mb-2">🔄 Refinance Analysis</h4>
+                <ul className="text-sm text-slate-700 space-y-1">
+                  <li>• Break-even timeline calculation</li>
+                  <li>• Total savings projection</li>
+                  <li>• Closing costs consideration</li>
+                  <li>• Clear refinance recommendation</li>
+                  <li>• Current vs. new loan comparison</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Call to Action */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300 text-center">
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Ready to Optimize Your Mortgage?</h3>
+            <p className="text-slate-700 mb-4">
+              Start using the calculator above to explore your options, compare loans, analyze refinancing, or evaluate investment properties. All features are 100% free with no signup required.
+            </p>
+            <p className="text-sm text-slate-600 italic">
+              💡 Tip: Try the "Compare Loans" feature to see how different down payments or interest rates affect your monthly payment and total interest paid.
+            </p>
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 };
