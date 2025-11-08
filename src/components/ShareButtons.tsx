@@ -2,12 +2,10 @@ import React from 'react';
 
 interface ShareButtonsProps {
   url?: string;
-  title?: string;
 }
 
 export const ShareButtons: React.FC<ShareButtonsProps> = ({ 
-  url = typeof window !== 'undefined' ? window.location.href : '',
-  title = 'Check out this Advanced Mortgage Calculator'
+  url = typeof window !== 'undefined' ? window.location.href : ''
 }) => {
   const encodedUrl = encodeURIComponent(url);
 
