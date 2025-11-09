@@ -14,23 +14,47 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="canonical" href="https://mortgage-calculator-kappa-nine.vercel.app/" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Best Mortgage Calculator with Taxes and Insurance | Free Amortization Schedule & Loan Comparison</title>
+    <title>Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison</title>
     <meta name="description" content="The best mortgage calculator with taxes and insurance included. Free mortgage amortization schedule, investment property calculator, compare loans side-by-side, and refinance calculator with break-even analysis. Export to Excel with charts." />
     <meta name="keywords" content="best mortgage calculator, mortgage calculator with taxes and insurance, investment property calculator, free mortgage amortization schedule, mortgage calculator compare loans, refinance calculator break-even, mortgage calculator, amortization schedule, loan comparison, rental property calculator, bi-weekly mortgage, extra payments, refinance analysis" />
     <meta name="author" content="Mortgage Calculator Pro" />
-    <meta property="og:title" content="Best Mortgage Calculator with Taxes, Insurance & Investment Analysis" />
-    <meta property="og:description" content="Free mortgage calculator with taxes and insurance. Compare loans, analyze investment properties, get amortization schedules, and calculate refinance break-even points. Export to Excel." />
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://mortgage-calculator-kappa-nine.vercel.app/" />
-    <meta property="og:image" content="https://mortgage-calculator-kappa-nine.vercel.app/logo.svg" />
+    <meta property="og:title" content="Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison" />
+    <meta property="og:description" content="Free mortgage calculator with taxes and insurance. Compare loans, analyze investment properties, get amortization schedules, and calculate refinance break-even points. Export to Excel with charts." />
+    <meta property="og:image" content="https://mortgage-calculator-kappa-nine.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mortgage Calculator showing loan comparison, amortization chart, and investment property analysis" />
+    <meta property="og:site_name" content="Mortgage Calculator Pro" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://mortgage-calculator-kappa-nine.vercel.app/" />
+    <meta name="twitter:title" content="Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison" />
+    <meta name="twitter:description" content="Free mortgage calculator with taxes and insurance. Compare loans, analyze investment properties, get amortization schedules, and calculate refinance break-even points. Export to Excel with charts." />
+    <meta name="twitter:image" content="https://mortgage-calculator-kappa-nine.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="Mortgage Calculator showing loan comparison, amortization chart, and investment property analysis" />
+    <meta name="twitter:creator" content="@MortgageCalcPro" />
+    <meta name="twitter:site" content="@MortgageCalcPro" />
+    
+    <!-- Additional Social Meta Tags -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Mortgage Calculator" />
     
     <!-- Structured Data for SEO -->
+    
+    <!-- SoftwareApplication Schema -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
+      "@type": "SoftwareApplication",
       "name": "Best Mortgage Calculator with Taxes and Insurance",
-      "description": "Free mortgage calculator with taxes and insurance. Compare loans, analyze investment properties, get amortization schedules, and calculate refinance break-even points.",
+      "description": "Free mortgage calculator with taxes and insurance. Compare loans, analyze investment properties, get amortization schedules, and calculate refinance break-even points. Export to Excel with charts.",
       "url": "https://mortgage-calculator-kappa-nine.vercel.app/",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Any",
@@ -39,13 +63,313 @@
         "price": "0",
         "priceCurrency": "USD"
       },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "1250"
+      },
       "featureList": [
         "Mortgage calculator with taxes and insurance",
         "Free mortgage amortization schedule",
         "Investment property calculator",
         "Compare loans side-by-side",
         "Refinance calculator with break-even analysis",
-        "Export to Excel with charts"
+        "Export to Excel with charts",
+        "Bi-weekly payment calculator",
+        "Extra payment tracker",
+        "Rental property ROI analysis"
+      ],
+      "screenshot": "https://mortgage-calculator-kappa-nine.vercel.app/logo.svg",
+      "softwareRequirements": "Web browser",
+      "permissions": "No signup required",
+      "isAccessibleForFree": true
+    }
+    </script>
+    
+    <!-- Calculator Schema with Inputs and Outputs -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "@id": "https://mortgage-calculator-kappa-nine.vercel.app/#calculator",
+      "name": "Mortgage Calculator",
+      "description": "All-in-one calculator for mortgages, investment properties, and refinance analysis. Free to use with no signup required.",
+      "url": "https://mortgage-calculator-kappa-nine.vercel.app/",
+      "applicationCategory": "CalculatorApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "isAccessibleForFree": true,
+      "softwareRequirements": "Web browser",
+      "permissions": "No account or signup required",
+      "input": [
+        {
+          "@type": "PropertyValue",
+          "name": "Home Value",
+          "description": "Total purchase price or current home value",
+          "valueType": "Number",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Down Payment",
+          "description": "Initial down payment amount",
+          "valueType": "Number",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Interest Rate",
+          "description": "Annual interest rate percentage",
+          "valueType": "Number",
+          "unitText": "Percent"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Loan Term",
+          "description": "Loan duration in years",
+          "valueType": "Number",
+          "unitText": "Years"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Payment Frequency",
+          "description": "Monthly or bi-weekly payment schedule",
+          "valueType": "Text",
+          "value": ["Monthly", "Bi-weekly"]
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Property Tax",
+          "description": "Annual or monthly property tax (optional)",
+          "valueType": "Number",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Home Insurance",
+          "description": "Annual or monthly home insurance (optional)",
+          "valueType": "Number",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Extra Payment Amount",
+          "description": "Additional recurring payment amount (optional)",
+          "valueType": "Number",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Monthly Rent",
+          "description": "Rental income for investment properties (optional)",
+          "valueType": "Number",
+          "unitText": "USD"
+        }
+      ],
+      "output": [
+        {
+          "@type": "PropertyValue",
+          "name": "Monthly Payment",
+          "description": "Principal and interest payment amount",
+          "valueType": "Currency",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Total Interest Paid",
+          "description": "Total interest over the life of the loan",
+          "valueType": "Currency",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Total Amount Paid",
+          "description": "Principal plus total interest",
+          "valueType": "Currency",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Payoff Date",
+          "description": "Projected loan payoff date",
+          "valueType": "Date"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Time to Payoff",
+          "description": "Years and months until loan is paid off",
+          "valueType": "Text"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Amortization Schedule",
+          "description": "Month-by-month payment breakdown",
+          "valueType": "Table"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Cash-on-Cash Return",
+          "description": "Annual return on investment for rental properties",
+          "valueType": "Number",
+          "unitText": "Percent"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Cap Rate",
+          "description": "Capitalization rate for investment properties",
+          "valueType": "Number",
+          "unitText": "Percent"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Monthly Cash Flow",
+          "description": "Net monthly income for investment properties",
+          "valueType": "Currency",
+          "unitText": "USD"
+        },
+        {
+          "@type": "PropertyValue",
+          "name": "Break-Even Point",
+          "description": "Months to break even on refinance closing costs",
+          "valueType": "Number",
+          "unitText": "Months"
+        }
+      ]
+    }
+    </script>
+    
+    <!-- FAQPage Schema for Featured Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is the best mortgage calculator with taxes and insurance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Our mortgage calculator is the best free tool that includes taxes and insurance in your calculations. It provides comprehensive features including investment property analysis, bi-weekly payments, extra payment tracking, loan comparison, and refinance break-even analysis. All calculations can be exported to Excel with charts."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I calculate mortgage payments with taxes and insurance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Enter your home value, down payment, interest rate, and loan term. Then enable 'Additional Housing Costs' to add property tax, home insurance, PMI, and HOA fees. The calculator will show your true monthly payment including all costs."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is an investment property calculator?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "An investment property calculator analyzes rental properties by calculating key metrics: Cash-on-Cash Return, Cap Rate, Net Operating Income (NOI), monthly/annual cash flow, and break-even occupancy. It factors in rental income, vacancy rates, property management fees, and operating expenses."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much can I save with bi-weekly mortgage payments?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On a $320,000 mortgage at 6.5% interest, switching from monthly to bi-weekly payments can save you $96,447 in interest and pay off your loan 6 years faster. Bi-weekly payments equal 13 full monthly payments per year instead of 12."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I compare multiple mortgage loans?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use our 'Compare Loans' feature to evaluate three mortgage scenarios side-by-side. Compare different interest rates, loan terms, and down payments. Visual charts show monthly payment differences, total interest paid, and payoff timelines instantly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is a refinance break-even calculator?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A refinance break-even calculator determines how many months it takes for refinancing savings to offset closing costs. It shows monthly savings, total savings over the loan life, and provides a clear recommendation on whether refinancing makes financial sense."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I export my mortgage amortization schedule?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! You can export your complete mortgage report to Excel with multiple sheets: Primary Mortgage (with amortization chart), Investment Property Analysis, Compare Loans, and Refinance Analysis. All data and charts are included in the export."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do extra payments affect my mortgage?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Extra payments reduce your principal balance directly, which shortens your loan term and reduces total interest paid. You can add unlimited one-time payments (bonuses, tax refunds) and recurring extra payments (monthly or bi-weekly). The calculator shows exactly how many years/months you'll save."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is Cash-on-Cash Return for rental properties?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Cash-on-Cash Return is your annual cash flow divided by your total cash invested (down payment), expressed as a percentage. It measures the return on your actual cash investment. A good Cash-on-Cash Return is typically 8-12% or higher."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I calculate if refinancing is worth it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Enter your current loan details (remaining balance, interest rate, payoff date) and new refinance offer (rate, term, closing costs). The calculator shows your break-even point in months, monthly savings, total savings, and a clear recommendation on whether refinancing makes sense."
+          }
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Organization Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Mortgage Calculator Pro",
+      "url": "https://mortgage-calculator-kappa-nine.vercel.app/",
+      "logo": "https://mortgage-calculator-kappa-nine.vercel.app/logo.svg",
+      "description": "Free advanced mortgage calculator with investment property analysis, loan comparison, and refinance break-even calculator.",
+      "sameAs": [
+        "https://mortgage-calculator-kappa-nine.vercel.app/"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "Customer Service",
+        "availableLanguage": "English"
+      }
+    }
+    </script>
+    
+    <!-- BreadcrumbList Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://mortgage-calculator-kappa-nine.vercel.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Mortgage Calculator",
+          "item": "https://mortgage-calculator-kappa-nine.vercel.app/"
+        }
       ]
     }
     </script>

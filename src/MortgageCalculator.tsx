@@ -567,7 +567,7 @@ const MortgageCalculator: React.FC = () => {
         <div className="mb-3 sm:mb-4 animate-slideDown">
           {/* Centered Heading */}
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2 mb-3">
-            Best Mortgage Calculator with Taxes and Insurance | Free Amortization Schedule
+            Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
           </h1>
           
           {/* Toggle - Below Header, Centered */}
@@ -583,7 +583,7 @@ const MortgageCalculator: React.FC = () => {
                   }
                 `}
               >
-                <span className="text-sm sm:text-base">🏠</span>
+                <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
                 <span>Primary</span>
               </button>
               <button
@@ -596,7 +596,7 @@ const MortgageCalculator: React.FC = () => {
                   }
                 `}
               >
-                <span className="text-sm sm:text-base">🏢</span>
+                <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
                 <span>Investment</span>
               </button>
             </div>
@@ -1210,16 +1210,22 @@ const MortgageCalculator: React.FC = () => {
                       <span className="text-xs font-semibold text-slate-600">Total Payment</span>
                       <span className="text-xs font-bold text-slate-800">{formatCurrency(totalPaid)}</span>
                     </div>
-                    <div className="flex h-6 rounded-lg overflow-hidden shadow-inner border-2 border-slate-200">
+                    <div 
+                      className="flex h-6 rounded-lg overflow-hidden shadow-inner border-2 border-slate-200"
+                      role="img"
+                      aria-label={`Mortgage cost breakdown: ${((loanAmount / totalPaid) * 100).toFixed(0)}% principal (${formatCurrency(loanAmount)}) and ${((totalInterest / totalPaid) * 100).toFixed(0)}% interest (${formatCurrency(totalInterest)}) of total payment ${formatCurrency(totalPaid)}`}
+                    >
                       <div 
                         className="bg-gradient-to-r from-emerald-400 to-emerald-500 flex items-center justify-center text-[10px] font-bold text-white transition-all duration-500"
                         style={{ width: `${((loanAmount / totalPaid) * 100).toFixed(1)}%` }}
+                        aria-label={`Principal: ${((loanAmount / totalPaid) * 100).toFixed(0)}% or ${formatCurrency(loanAmount)}`}
                       >
                         {((loanAmount / totalPaid) * 100).toFixed(0)}%
                       </div>
                       <div 
                         className="bg-gradient-to-r from-red-400 to-red-500 flex items-center justify-center text-[10px] font-bold text-white transition-all duration-500"
                         style={{ width: `${((totalInterest / totalPaid) * 100).toFixed(1)}%` }}
+                        aria-label={`Interest: ${((totalInterest / totalPaid) * 100).toFixed(0)}% or ${formatCurrency(totalInterest)}`}
                       >
                         {((totalInterest / totalPaid) * 100).toFixed(0)}%
                       </div>
@@ -1340,7 +1346,7 @@ const MortgageCalculator: React.FC = () => {
                         <div className="mt-3 pt-2 border-t border-green-200">
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-[9px] font-semibold text-slate-700 flex items-center gap-1">
-                              📊 Rental Projections
+                              <span aria-label="Chart icon">📊</span> Rental Projections
                               <HelpTooltip content={`Based on ${propertyAppreciationRate}% annual rental growth`} />
                             </p>
                           </div>
@@ -1466,20 +1472,26 @@ const MortgageCalculator: React.FC = () => {
                       <div className="mt-3 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between mb-1.5">
                           <p className="text-[9px] font-semibold text-slate-700 flex items-center gap-1">
-                            💰 Loan Cost Breakdown
+                            <span aria-label="Money icon">💰</span> Loan Cost Breakdown
                             <HelpTooltip content="Shows how your total payment is divided between principal and interest" />
                           </p>
                         </div>
-                        <div className="flex h-4 rounded-md overflow-hidden shadow-inner border border-slate-200 mb-1">
+                        <div 
+                          className="flex h-4 rounded-md overflow-hidden shadow-inner border border-slate-200 mb-1"
+                          role="img"
+                          aria-label={`Investment property loan cost breakdown: ${((loanAmount / totalPaid) * 100).toFixed(0)}% principal (${formatCurrency(loanAmount)}) and ${((totalInterest / totalPaid) * 100).toFixed(0)}% interest (${formatCurrency(totalInterest)}) of total payment ${formatCurrency(totalPaid)}`}
+                        >
                           <div 
                             className="bg-gradient-to-r from-emerald-400 to-emerald-500 flex items-center justify-center text-[8px] font-bold text-white"
                             style={{ width: `${((loanAmount / totalPaid) * 100).toFixed(1)}%` }}
+                            aria-label={`Principal: ${((loanAmount / totalPaid) * 100).toFixed(0)}%`}
                           >
                             {((loanAmount / totalPaid) * 100).toFixed(0)}%
                           </div>
                           <div 
                             className="bg-gradient-to-r from-red-400 to-red-500 flex items-center justify-center text-[8px] font-bold text-white"
                             style={{ width: `${((totalInterest / totalPaid) * 100).toFixed(1)}%` }}
+                            aria-label={`Interest: ${((totalInterest / totalPaid) * 100).toFixed(0)}%`}
                           >
                             {((totalInterest / totalPaid) * 100).toFixed(0)}%
                           </div>
@@ -1560,8 +1572,16 @@ const MortgageCalculator: React.FC = () => {
                 {/* Comparison Bar Chart */}
                 <div className="flex justify-center">
                   <div className="w-full sm:w-3/4 md:w-1/2">
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={comparisonBarData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                    <div className="sr-only">
+                      <h3>Payment Plan Comparison Chart</h3>
+                      <p>
+                        {isExtraPaymentComparison 
+                          ? `Bar chart comparing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments (${formatCurrency(comparisonCalc.totalInterest)} total interest) vs With Extra Payments (${formatCurrency(totalInterest)} total interest). Extra payments save ${formatCurrency(interestSaved)} in interest.`
+                          : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest). Bi-weekly saves ${formatCurrency(interestSaved)} in interest.`}
+                      </p>
+                    </div>
+                    <ResponsiveContainer width="100%" height={280} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(comparisonCalc.totalInterest)} total interest versus Extra Payments with ${formatCurrency(totalInterest)} total interest, saving ${formatCurrency(interestSaved)}` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest, saving ${formatCurrency(interestSaved)}`}>
+                      <BarChart data={comparisonBarData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }} aria-label="Payment plan comparison bar chart">
                         <defs>
                           <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
@@ -1700,8 +1720,12 @@ const MortgageCalculator: React.FC = () => {
                     </div>
                   </div>
                   
-                  <ResponsiveContainer width="100%" height={250}>
-                    <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+                  <div className="sr-only">
+                    <h3>Amortization Overview Chart</h3>
+                    <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to $0), Principal Paid (increasing from $0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
+                    <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} aria-label="Mortgage amortization area chart">
                       <defs>
                         <linearGradient id="balanceGradient2" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -1826,8 +1850,12 @@ const MortgageCalculator: React.FC = () => {
                 </div>
               </div>
               
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+              <div className="sr-only">
+                <h3>Amortization Overview Chart</h3>
+                <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to $0), Principal Paid (increasing from $0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
+              </div>
+              <ResponsiveContainer width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} aria-label="Mortgage amortization area chart">
                   <defs>
                     <linearGradient id="balanceGradient2" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -2830,27 +2858,39 @@ const MortgageCalculator: React.FC = () => {
             <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6 text-center">What Makes This Calculator Different?</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">🏠 Rental Property Mode</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Home icon - Rental Property Mode">🏠</span> Rental Property Mode
+                </div>
                 <p className="text-sm text-slate-600">Calculate CAP rate, Cash-on-Cash return, NOI, and break-even occupancy</p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">⏱️ Bi-Weekly Payments</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Clock icon - Bi-Weekly Payments">⏱️</span> Bi-Weekly Payments
+                </div>
                 <p className="text-sm text-slate-600">Save $96,000+ in interest and pay off 6 years faster</p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">💰 Extra Payments</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Money bag icon - Extra Payments">💰</span> Extra Payments
+                </div>
                 <p className="text-sm text-slate-600">Track unlimited one-time and recurring extra payments</p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">⚖️ Loan Comparison</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Balance scale icon - Loan Comparison">⚖️</span> Loan Comparison
+                </div>
                 <p className="text-sm text-slate-600">Compare 3 mortgage scenarios side-by-side instantly</p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">🔄 Refinance Analysis</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Refresh icon - Refinance Analysis">🔄</span> Refinance Analysis
+                </div>
                 <p className="text-sm text-slate-600">Discover your break-even point and total savings</p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                <div className="text-lg font-bold text-slate-800 mb-2">📊 Full Amortization</div>
+                <div className="text-lg font-bold text-slate-800 mb-2">
+                  <span aria-label="Chart icon - Full Amortization">📊</span> Full Amortization
+                </div>
                 <p className="text-sm text-slate-600">View detailed payment schedule and export to CSV</p>
               </div>
             </div>
