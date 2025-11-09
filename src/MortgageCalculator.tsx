@@ -16,6 +16,7 @@ import type { OneTimePayment, PaymentType } from './types/mortgage';
 import { formatCurrency, formatCurrencyCompact, formatDate, formatYearsMonths } from './utils/formatting';
 import { calculateMonthlyPayment, simulateMonthlyAmortization, simulateBiweeklyAmortization } from './utils/calculations-helpers';
 import { applyScenarioToCalculator } from './helpers/applyScenario';
+import { exportToExcel } from './utils/excelExport';
 
 // Import hooks
 import { useNumberInput } from './hooks/useNumberInput';
@@ -382,6 +383,139 @@ const MortgageCalculator: React.FC = () => {
       cumulative: item.totalInterest + (loanAmount - item.balance)
     }));
 
+  // Excel Export Handler
+  const handleExportToExcel = async () => {
+    try {
+      // Prepare primary mortgage data
+      const primaryData = {
+        homeValue,
+        downPayment,
+        loanAmount,
+        interestRate,
+        tenure,
+        paymentAmount,
+        totalInterest,
+        totalPaid,
+        endDate,
+        schedule,
+        chartData: chartData,
+        paymentType,
+        extraPaymentEnabled,
+        extraPaymentAmount,
+      };
+
+      // Prepare investment property data (if applicable)
+      let investmentData = undefined;
+      if (propertyType === 'investment') {
+        investmentData = {
+          monthlyRent: monthlyRentInput.value,
+          vacancyRate,
+          effectiveMonthlyRent,
+          propertyManagementPercent,
+          maintenance: maintenanceInput.value,
+          utilities: utilitiesInput.value,
+          propertyAppreciationRate,
+          monthlyCashFlow,
+          annualCashFlow,
+          cashOnCashReturn,
+          capRate,
+          breakEvenOccupancy,
+          netOperatingIncome,
+          totalOperatingExpenses,
+          futureMonthlyRent5Year,
+          futureMonthlyRent10Year,
+          futureMonthlyRent15Year,
+          primaryData,
+        };
+      }
+
+      // Prepare compare loans data (if available)
+      let compareLoansData = undefined;
+      if (showScenarioComparison) {
+        compareLoansData = {
+          currentScenario: {
+            homeValue,
+            downPayment,
+            interestRate,
+            tenure,
+            paymentType,
+            loanAmount: currentScenarioBase.loanAmount,
+            payment: currentScenarioBase.payment,
+            totalInterest: currentScenarioBase.totalInterest,
+            totalPaid: currentScenarioBase.totalPaid,
+            tenureYears: currentScenarioBase.tenure,
+          },
+          scenarioB: {
+            homeValue: scenarioB.homeValue,
+            downPayment: scenarioB.downPayment,
+            interestRate: scenarioB.interestRate,
+            tenure: scenarioB.tenure,
+            paymentType: scenarioB.paymentType,
+            loanAmount: scenarioBCalc.loanAmount,
+            payment: scenarioBCalc.payment,
+            totalInterest: scenarioBCalc.totalInterest,
+            totalPaid: scenarioBCalc.totalPaid,
+            tenureYears: scenarioBCalc.tenure,
+          },
+          scenarioC: {
+            homeValue: scenarioC.homeValue,
+            downPayment: scenarioC.downPayment,
+            interestRate: scenarioC.interestRate,
+            tenure: scenarioC.tenure,
+            paymentType: scenarioC.paymentType,
+            loanAmount: scenarioCCalc.loanAmount,
+            payment: scenarioCCalc.payment,
+            totalInterest: scenarioCCalc.totalInterest,
+            totalPaid: scenarioCCalc.totalPaid,
+            tenureYears: scenarioCCalc.tenure,
+          },
+          comparisonBarData,
+        };
+      }
+
+      // Prepare refinance data (if available)
+      let refinanceDataExport = undefined;
+      if (showRefinanceAnalysis) {
+        const refinanceCalc = calculateRefinance();
+        refinanceDataExport = {
+          currentLoan: {
+            remainingBalance: refinanceData.remainingBalance,
+            currentRate: refinanceData.currentRate,
+            currentPayment: refinanceCalc.currentPayment,
+            currentMonthlyTotal: refinanceCalc.currentMonthlyTotal,
+            currentTotalPayments: refinanceCalc.currentTotalPayments,
+            currentTotalInterest: refinanceCalc.currentTotalInterest,
+            remainingMonths: refinanceCalc.remainingMonths,
+          },
+          newLoan: {
+            newRate: refinanceData.newRate,
+            newPayment: refinanceCalc.newPayment,
+            newMonthlyTotal: refinanceCalc.newMonthlyTotal,
+            newTotalPayments: refinanceCalc.newTotalPayments,
+            newTotalInterest: refinanceCalc.newTotalInterest,
+            actualNewMonths: refinanceCalc.actualNewMonths,
+            closingCosts: refinanceData.closingCosts,
+            newTerm: refinanceData.newTerm,
+          },
+          savings: {
+            monthlySavings: refinanceCalc.monthlySavings,
+            totalSavings: refinanceCalc.totalSavings,
+            interestSavings: refinanceCalc.interestSavings,
+            breakEvenMonths: refinanceCalc.breakEvenMonths,
+            breakEvenYears: refinanceCalc.breakEvenYears,
+            timeDifference: refinanceCalc.timeDifference,
+            worthIt: refinanceCalc.worthIt,
+          },
+        };
+      }
+
+      await exportToExcel(primaryData, investmentData, compareLoansData, refinanceDataExport);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export to Excel. Please try again.');
+    }
+  };
+
   // Comparison bar chart data
   const comparisonBarData = isExtraPaymentComparison
     ? [
@@ -433,7 +567,7 @@ const MortgageCalculator: React.FC = () => {
         <div className="mb-3 sm:mb-4 animate-slideDown">
           {/* Centered Heading */}
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2 mb-3">
-            Mortgage Calculator: The Ultimate Loan & Rental Property Analyzer
+            Best Mortgage Calculator with Taxes and Insurance | Free Amortization Schedule
           </h1>
           
           {/* Toggle - Below Header, Centered */}
@@ -2676,17 +2810,50 @@ const MortgageCalculator: React.FC = () => {
       <div className="max-w-6xl mx-auto mt-12 px-4 pb-12">
         <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-10 border border-slate-200">
           
-          {/* Introduction */}
+          {/* Main H1 - Hidden visually but present for SEO */}
+          <h1 className="sr-only">Mortgage Calculator: Primary & Investment Property, Bi-Weekly Payments & Extra Payment Optimizer</h1>
+          
+          {/* Subheading */}
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 text-center border-b-2 border-blue-500 pb-3">
+            All-In-One Mortgage & Rental Property Calculator for Homebuyers & Investors
+          </h2>
+          
+          {/* Intro Paragraph */}
           <div className="prose prose-slate max-w-none mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-blue-500 pb-2">
-              Why Choose Our Advanced Mortgage Calculator?
-            </h2>
-            <p className="text-slate-700 leading-relaxed mb-4">
-              Most standard mortgage calculators fall short when you need real-world flexibility. Whether you're planning to make <strong>multiple one-time lump-sum payments</strong>, comparing <strong>three different loan offers side-by-side</strong>, or analyzing a <strong>rental property investment</strong>, traditional calculators simply can't keep up. Our comprehensive mortgage and refinance calculator was built to solve these exact problems, giving you the power to model complex payment scenarios that match your actual financial situation.
+            <p className="text-lg text-slate-700 leading-relaxed mb-6">
+              Stop using 3-4 different calculators. Our comprehensive mortgage calculator combines everything you need: <strong>rental property analysis, bi-weekly payments, extra payment tracking, loan comparison, and refinance break-even analysis, Amortization Schedule</strong>—all in one place.
             </p>
-            <p className="text-slate-700 leading-relaxed">
-              From <strong>bi-weekly mortgage payments</strong> to <strong>extra monthly contributions</strong>, and from <strong>refinance break-even analysis</strong> to <strong>investment property cash flow calculations</strong>, this tool provides everything you need to make informed decisions about your home loan or rental property purchase.
-            </p>
+          </div>
+          
+          {/* Feature Highlight Box */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 sm:p-8 mb-10 border-2 border-blue-200 shadow-md">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6 text-center">What Makes This Calculator Different?</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">🏠 Rental Property Mode</div>
+                <p className="text-sm text-slate-600">Calculate CAP rate, Cash-on-Cash return, NOI, and break-even occupancy</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">⏱️ Bi-Weekly Payments</div>
+                <p className="text-sm text-slate-600">Save $96,000+ in interest and pay off 6 years faster</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">💰 Extra Payments</div>
+                <p className="text-sm text-slate-600">Track unlimited one-time and recurring extra payments</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">⚖️ Loan Comparison</div>
+                <p className="text-sm text-slate-600">Compare 3 mortgage scenarios side-by-side instantly</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">🔄 Refinance Analysis</div>
+                <p className="text-sm text-slate-600">Discover your break-even point and total savings</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <div className="text-lg font-bold text-slate-800 mb-2">📊 Full Amortization</div>
+                <p className="text-sm text-slate-600">View detailed payment schedule and export to CSV</p>
+              </div>
+            </div>
           </div>
 
           {/* Pain Points Section */}
@@ -2716,53 +2883,156 @@ const MortgageCalculator: React.FC = () => {
             </p>
           </div>
 
-          {/* Solutions Section */}
+          {/* Feature Explanations */}
           <div className="mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">
-              Our Powerful Solutions
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 border-b-2 border-green-500 pb-3">
+              How to Use Each Feature
             </h2>
 
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 mt-6 flex items-center gap-2">
-              <span className="text-2xl">💰</span> Multiple One-Time Payments & Flexible Extra Payments
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 mb-4 mt-8">1. Investment Property Rental Analysis</h3>
             <p className="text-slate-700 leading-relaxed mb-4">
-              Add unlimited lump-sum payments at any date, plus set up recurring extra payments (monthly or bi-weekly). See exactly how each additional payment accelerates your mortgage payoff and reduces total interest. Our calculator tracks every dollar and shows you the cumulative impact on your loan timeline.
+              Analyzing a rental property? Switch to <strong>Investment Property Mode</strong> to calculate:
+            </p>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-6 ml-4">
+              <li><strong>Monthly & Annual Cash Flow:</strong> See your actual rental income minus expenses</li>
+              <li><strong>Cash-on-Cash Return:</strong> Your annual return on the cash invested</li>
+              <li><strong>Capitalization Rate (CAP Rate):</strong> Quick measure of property profitability</li>
+              <li><strong>Net Operating Income (NOI):</strong> Rental income minus operating expenses</li>
+              <li><strong>Break-Even Occupancy:</strong> Minimum occupancy rate needed to cover expenses</li>
+            </ul>
+
+            <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 mb-4 mt-8">2. Bi-Weekly Mortgage Payments</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              One of the most powerful mortgage strategies is switching to <strong>bi-weekly payments</strong>. Here's how it works:
+            </p>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-4 ml-4">
+              <li>Instead of 12 monthly payments per year, you make 26 bi-weekly payments</li>
+              <li>This equals 13 full monthly payments annually (instead of 12)</li>
+              <li>That extra payment goes directly toward principal, reducing interest dramatically</li>
+            </ul>
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-6">
+              <p className="text-slate-800 font-semibold mb-2">Real Example: On a $320,000 mortgage at 6.5% interest:</p>
+              <ul className="list-disc list-inside text-slate-700 space-y-1 ml-4">
+                <li>Monthly payments: $2,022.62/month for 30 years</li>
+                <li>Bi-weekly payments: $1,011.31 every 2 weeks for 24 years</li>
+                <li className="font-bold text-green-700">You save: $96,447 in interest + 6 years of payments</li>
+              </ul>
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 mb-4 mt-8">3. Track Mortgage Extra Payments</h3>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Use this feature to see the impact of any extra payment strategy:
+            </p>
+            <h4 className="text-lg font-semibold text-slate-700 mb-3 mt-4">One-Time Extra Payments</h4>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-4 ml-4">
+              <li>Year-end bonuses</li>
+              <li>Tax refunds</li>
+              <li>Inheritance or gifts</li>
+              <li>Side income windfalls</li>
+            </ul>
+            <p className="text-slate-700 leading-relaxed mb-4">
+              Specify the date and amount. The calculator shows exactly how many years/months you'll save and total interest reduction.
+            </p>
+            <h4 className="text-lg font-semibold text-slate-700 mb-3 mt-4">Recurring Extra Payments</h4>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-4 ml-4">
+              <li>Add $100/month extra</li>
+              <li>Add $500 bi-weekly</li>
+              <li>Any recurring amount</li>
+            </ul>
+            <p className="text-slate-700 leading-relaxed mb-6">
+              See cumulative impact over your loan term.
             </p>
 
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <span className="text-2xl">📊</span> Three-Way Loan Comparison with Interactive Graphs
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 mb-4 mt-8">4. Compare 3 Mortgage Loans Side-by-Side</h3>
             <p className="text-slate-700 leading-relaxed mb-4">
-              Compare your current scenario against two alternative loan offers. Adjust home values, down payments, interest rates, and loan terms—then instantly see which option saves you the most money. Visual bar graphs highlight the differences in monthly payments, total interest, and payoff dates. Perfect for shopping multiple lenders or deciding between 15-year vs. 30-year mortgages.
+              Shopping for the best rate? Use our <strong>3-way loan comparison</strong> to instantly see:
             </p>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-4 ml-4">
+              <li>Different interest rates (e.g., 5.5% vs 6.0% vs 6.5%)</li>
+              <li>Different loan terms (e.g., 15-year vs 20-year vs 30-year)</li>
+              <li>Different down payments</li>
+            </ul>
+            <p className="text-slate-700 leading-relaxed mb-4 font-semibold">Visual charts show:</p>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-6 ml-4">
+              <li>Monthly payment differences</li>
+              <li>Total interest paid</li>
+              <li>Payoff timeline</li>
+            </ul>
 
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <span className="text-2xl">🔄</span> Instant Refinancing Break-Even Recommendation
-            </h3>
+            <h3 className="text-xl sm:text-2xl font-semibold text-slate-800 mb-4 mt-8">5. Refinance Break-Even Calculator</h3>
             <p className="text-slate-700 leading-relaxed mb-4">
-              Enter your current loan details and new refinance offer, including closing costs. Our calculator instantly tells you: How many months until you break even? What's your total savings? Should you refinance or stay put? It even accounts for your current remaining balance and projected payoff date, giving you a personalized, data-driven recommendation.
+              Considering refinancing? This feature instantly tells you:
             </p>
+            <ul className="list-disc list-inside text-slate-700 space-y-2 mb-4 ml-4">
+              <li><strong>Months to break even:</strong> How long until refinance savings offset closing costs</li>
+              <li><strong>Monthly savings:</strong> How much you'll save per payment</li>
+              <li><strong>Total savings over loan life:</strong> Total money saved if you keep the loan to maturity</li>
+            </ul>
+            <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded mb-6">
+              <p className="text-slate-800 font-semibold">
+                <strong>Example:</strong> You'll see "Break even in 18 months" with monthly savings of $343 and total savings of $43,435.
+              </p>
+            </div>
+          </div>
 
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <span className="text-2xl">🏘️</span> Full Rental Property Investment Analysis
-            </h3>
-            <p className="text-slate-700 leading-relaxed mb-4">
-              Toggle to <strong>Investment Property mode</strong> to unlock rental-specific features. Input monthly rent, vacancy rate, property management percentage, maintenance costs, and other operating expenses. The calculator automatically computes your monthly cash flow, annual cash flow, Cash-on-Cash Return, Cap Rate, NOI, and Break-Even Occupancy percentage—all the metrics real estate investors need to evaluate deals.
-            </p>
-
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <span className="text-2xl">📅</span> Bi-Weekly Payment Optimization
-            </h3>
-            <p className="text-slate-700 leading-relaxed mb-4">
-              Switch from monthly to bi-weekly payments and watch your payoff timeline shrink. By making 26 half-payments per year (equivalent to 13 full monthly payments), you can save years off your mortgage and thousands in interest. Our calculator shows the exact savings and new payoff date.
-            </p>
-
-            <h3 className="text-xl font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <span className="text-2xl">📥</span> Complete Amortization Schedule with CSV Export
-            </h3>
-            <p className="text-slate-700 leading-relaxed mb-4">
-              View your complete amortization schedule month-by-month, including principal, interest, extra payments, and remaining balance. Need to share it with your financial advisor or import into Excel? Export the entire schedule to CSV with one click. Every payment, every extra contribution, every detail—all downloadable.
-            </p>
+          {/* Comparison Table Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 border-b-2 border-indigo-500 pb-3">
+              How We Compare to Other Mortgage Calculators
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                    <th className="border border-slate-300 p-3 text-left font-bold">Feature</th>
+                    <th className="border border-slate-300 p-3 text-center font-bold">Our Calculator</th>
+                    <th className="border border-slate-300 p-3 text-center font-bold">Standard Calculators</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white hover:bg-slate-50">
+                    <td className="border border-slate-300 p-3 font-semibold">Investment Property Analysis</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Included</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ Not Available</td>
+                  </tr>
+                  <tr className="bg-slate-50 hover:bg-slate-100">
+                    <td className="border border-slate-300 p-3 font-semibold">Multiple One-Time Payments</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Unlimited</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ Limited/None</td>
+                  </tr>
+                  <tr className="bg-white hover:bg-slate-50">
+                    <td className="border border-slate-300 p-3 font-semibold">Bi-Weekly Payment Comparison</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Side-by-Side</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ Separate Calculations</td>
+                  </tr>
+                  <tr className="bg-slate-50 hover:bg-slate-100">
+                    <td className="border border-slate-300 p-3 font-semibold">3-Way Loan Comparison</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Visual Charts</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ Manual Comparison</td>
+                  </tr>
+                  <tr className="bg-white hover:bg-slate-50">
+                    <td className="border border-slate-300 p-3 font-semibold">Refinance Break-Even Analysis</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Automatic</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ Manual Calculation</td>
+                  </tr>
+                  <tr className="bg-slate-50 hover:bg-slate-100">
+                    <td className="border border-slate-300 p-3 font-semibold">Taxes & Insurance Included</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Optional</td>
+                    <td className="border border-slate-300 p-3 text-center text-yellow-600">⚠ Some Include</td>
+                  </tr>
+                  <tr className="bg-white hover:bg-slate-50">
+                    <td className="border border-slate-300 p-3 font-semibold">Excel Export with Charts</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Full Report</td>
+                    <td className="border border-slate-300 p-3 text-center text-red-600">✗ CSV Only</td>
+                  </tr>
+                  <tr className="bg-slate-50 hover:bg-slate-100">
+                    <td className="border border-slate-300 p-3 font-semibold">Recurring Extra Payments</td>
+                    <td className="border border-slate-300 p-3 text-center text-green-600 font-bold">✓ Monthly/Bi-Weekly</td>
+                    <td className="border border-slate-300 p-3 text-center text-yellow-600">⚠ Limited Options</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Feature Highlights */}
@@ -2846,6 +3116,39 @@ const MortgageCalculator: React.FC = () => {
                   <li>• <strong>Break-Even Occupancy:</strong> (Operating Expenses + Debt Service) / Gross Potential Rent × 100</li>
                 </ul>
               </div>
+            </div>
+          </div>
+
+          {/* Export to Excel Section */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  Download Complete Report to Excel
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Export all your mortgage calculations, charts, and analysis to Excel with multiple sheets
+                </p>
+              </div>
+              <button
+                onClick={handleExportToExcel}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 text-base whitespace-nowrap"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download Excel Report
+              </button>
+            </div>
+            <div className="mt-3 text-xs text-slate-600 space-y-1">
+              <p className="font-semibold">Includes:</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-2">
+                <li>Sheet 1: Primary Mortgage (with amortization chart)</li>
+                {propertyType === 'investment' && <li>Sheet 2: Investment Property Analysis (with cash flow projections)</li>}
+                {showScenarioComparison && <li>Sheet 3: Compare Loans (with comparison chart)</li>}
+                {showRefinanceAnalysis && <li>Sheet 4: Refinance Analysis (with comparison chart)</li>}
+              </ul>
             </div>
           </div>
 
