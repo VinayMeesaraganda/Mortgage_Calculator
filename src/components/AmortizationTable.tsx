@@ -1,6 +1,6 @@
 // Amortization Schedule Table Component
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo, useCallback } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { ScheduleItem, GroupedScheduleItem, GroupByOption } from '../types/mortgage';
 import { formatCurrency, formatDate } from '../utils/formatting';
@@ -10,11 +10,12 @@ interface AmortizationTableProps {
   schedule: ScheduleItem[];
 }
 
-export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }) => {
+const AmortizationTableComponent: React.FC<AmortizationTableProps> = ({ schedule }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByOption>('year');
   
-  const exportToCSV = () => {
+  // Memoize CSV export function to prevent recreation on every render
+  const exportToCSV = useCallback(() => {
     const headers = ['Payment #', 'Date', 'Payment', 'Principal', 'Interest', 'Balance', 'Total Interest'];
     
     const rows = schedule.map(item => [
@@ -41,7 +42,7 @@ export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, [schedule]);
   
   const groupedSchedule = useMemo((): (ScheduleItem | GroupedScheduleItem)[] => {
     if (groupBy === 'none') return schedule;
@@ -156,7 +157,8 @@ export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }
             </button>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* Desktop Table View - hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto">
             <div className="max-h-96 overflow-y-auto">
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-blue-50 to-slate-50 sticky top-0 border-b-2 border-blue-200">
@@ -221,9 +223,66 @@ export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }
               </table>
             </div>
           </div>
+
+          {/* Mobile Card View - visible only on mobile */}
+          <div className="sm:hidden max-h-96 overflow-y-auto space-y-3">
+            {groupedSchedule.map((row, idx) => {
+              const groupedRow = groupBy !== 'none' ? row as GroupedScheduleItem : null;
+              return (
+                <div key={idx} className="bg-white rounded-lg border-2 border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-3 border-b border-slate-200 pb-2">
+                    <div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">
+                        {groupBy === 'none' ? 'Payment' : 'Period'}
+                      </div>
+                      <div className="text-lg font-bold text-slate-800">
+                        {groupBy === 'none' ? `#${row.paymentNum}` : (groupBy === 'year' ? `Year ${idx + 1}` : groupedRow?.displayDate)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Date</div>
+                      <div className="text-sm font-semibold text-slate-700">
+                        {groupBy === 'none' ? formatDate(row.date) : groupedRow?.displayDate}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {groupBy !== 'none' && groupedRow?.count && (
+                    <div className="mb-2 pb-2 border-b border-slate-100">
+                      <div className="text-xs text-slate-600">
+                        <span className="font-semibold">{groupedRow.count}</span> payments
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Payment</div>
+                      <div className="text-base font-bold text-slate-800">{formatCurrency(row.payment)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Balance</div>
+                      <div className="text-base font-bold text-blue-600">{formatCurrency(row.balance)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Principal</div>
+                      <div className="text-sm font-medium text-green-600">{formatCurrency(row.principal)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Interest</div>
+                      <div className="text-sm font-medium text-red-600">{formatCurrency(row.interest)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
   );
 };
+
+// Export memoized version to prevent unnecessary re-renders
+export const AmortizationTable = memo(AmortizationTableComponent);
 

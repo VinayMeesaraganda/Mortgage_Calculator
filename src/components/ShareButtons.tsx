@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 interface ShareButtonsProps {
   url?: string;
 }
 
-export const ShareButtons: React.FC<ShareButtonsProps> = ({ 
+const ShareButtonsComponent: React.FC<ShareButtonsProps> = ({ 
   url = typeof window !== 'undefined' ? window.location.href : ''
 }) => {
   const encodedUrl = encodeURIComponent(url);
@@ -79,6 +79,9 @@ export const ShareButtons: React.FC<ShareButtonsProps> = ({
     </div>
   );
 };
+
+// Export memoized version to prevent unnecessary re-renders
+export const ShareButtons = memo(ShareButtonsComponent);
 
 export default ShareButtons;
 

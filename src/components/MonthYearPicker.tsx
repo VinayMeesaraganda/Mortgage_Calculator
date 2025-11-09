@@ -1,6 +1,6 @@
 // Custom Month/Year Picker component
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 
 interface MonthYearPickerProps {
@@ -10,7 +10,7 @@ interface MonthYearPickerProps {
   disabled?: boolean;
 }
 
-export const MonthYearPicker: React.FC<MonthYearPickerProps> = ({ 
+const MonthYearPickerComponent: React.FC<MonthYearPickerProps> = ({ 
   value, 
   onChange, 
   className = '', 
@@ -170,4 +170,7 @@ export const MonthYearPicker: React.FC<MonthYearPickerProps> = ({
     </div>
   );
 };
+
+// Export memoized version to prevent unnecessary re-renders
+export const MonthYearPicker = memo(MonthYearPickerComponent);
 

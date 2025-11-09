@@ -1,22 +1,26 @@
 // Formatting utility functions
+import { formatCurrencyValue, formatCurrencyCompactValue } from './currency';
+import type { Currency } from '../types/mortgage';
 
-export const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
+// Global currency state (can be set from components)
+let globalCurrency: Currency = 'USD';
+
+export const setGlobalCurrency = (currency: Currency) => {
+  globalCurrency = currency;
 };
 
-export const formatCurrencyCompact = (value: number): string => {
-  if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(0)}M`;
-  } else if (value >= 1000) {
-    return `$${(value / 1000).toFixed(0)}K`;
-  } else {
-    return `$${value.toFixed(0)}`;
-  }
+export const getGlobalCurrency = (): Currency => {
+  return globalCurrency;
+};
+
+export const formatCurrency = (value: number, currency?: Currency): string => {
+  const curr = currency || globalCurrency;
+  return formatCurrencyValue(value, curr, true);
+};
+
+export const formatCurrencyCompact = (value: number, currency?: Currency): string => {
+  const curr = currency || globalCurrency;
+  return formatCurrencyCompactValue(value, curr);
 };
 
 export const formatDate = (dateStr: string): string => {

@@ -1,12 +1,12 @@
 // Help Tooltip component with classic styling
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 
 interface HelpTooltipProps {
   content: string;
 }
 
-export const HelpTooltip: React.FC<HelpTooltipProps> = ({ content }) => {
+const HelpTooltipComponent: React.FC<HelpTooltipProps> = ({ content }) => {
   const [isOpen, setIsOpen] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -47,4 +47,7 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ content }) => {
     </div>
   );
 };
+
+// Export memoized version to prevent unnecessary re-renders
+export const HelpTooltip = memo(HelpTooltipComponent);
 

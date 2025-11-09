@@ -52,4 +52,23 @@ export interface NumberInputHook {
 export type PaymentType = 'monthly' | 'biweekly';
 export type ExtraPaymentFrequency = 'monthly' | 'biweekly';
 export type GroupByOption = 'year' | 'month' | 'none';
+export type Currency = 'USD' | 'CAD' | 'GBP' | 'EUR' | 'AUD' | 'INR';
+export type MortgageType = 'fixed' | 'arm';
+
+export interface CurrencyInfo {
+  code: Currency;
+  symbol: string;
+  name: string;
+  rate: number; // Exchange rate to USD
+}
+
+export interface ARMDetails {
+  initialRate: number;
+  initialPeriodYears: number;
+  adjustmentPeriodYears: number;
+  rateCapPerAdjustment: number;
+  lifetimeRateCap: number;
+  indexRate: number;
+  margin: number;
+}
 

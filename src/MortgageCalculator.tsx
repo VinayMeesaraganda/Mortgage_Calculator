@@ -1,7 +1,7 @@
 // Main Mortgage Calculator Component - Modularized Version
 // This file demonstrates the clean architecture using separated modules
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar,
@@ -10,13 +10,15 @@ import {
 } from 'recharts';
 
 // Import types
-import type { OneTimePayment, PaymentType } from './types/mortgage';
+import type { OneTimePayment, PaymentType, Currency } from './types/mortgage';
 
 // Import utilities
-import { formatCurrency, formatCurrencyCompact, formatDate, formatYearsMonths } from './utils/formatting';
+import { formatCurrency, formatCurrencyCompact, formatDate, formatYearsMonths, setGlobalCurrency } from './utils/formatting';
 import { calculateMonthlyPayment, simulateMonthlyAmortization, simulateBiweeklyAmortization } from './utils/calculations-helpers';
 import { applyScenarioToCalculator } from './helpers/applyScenario';
 import { exportToExcel } from './utils/excelExport';
+import { exportToPDF } from './utils/pdfExport';
+import { CURRENCY_DATA } from './utils/currency';
 
 // Import hooks
 import { useNumberInput } from './hooks/useNumberInput';
@@ -26,7 +28,14 @@ import { useMortgageCalculations } from './hooks/useMortgageCalculations';
 import { HelpTooltip } from './components/HelpTooltip';
 import { MonthYearPicker } from './components/MonthYearPicker';
 import { AmortizationTable } from './components/AmortizationTable';
-import { ShareButtons } from './components/ShareButtons';
+import SEOContent from './components/SEOContent';
+import EmailCaptureModal from './components/EmailCaptureModal';
+import ViralShareResults from './components/ViralShareResults';
+import Testimonials from './components/Testimonials';
+import SocialProofBanner from './components/SocialProofBanner';
+import CurrencySelector from './components/CurrencySelector';
+import CurrentRatesDisplay from './components/CurrentRatesDisplay';
+import ExportDropdown from './components/ExportDropdown';
 
 // Import constants
 import { INPUT_STYLE, CARD_STYLE, CARD_SHADOW } from './constants/styles';
@@ -117,6 +126,22 @@ const MortgageCalculator: React.FC = () => {
   const [editingDownPaymentPercent, setEditingDownPaymentPercent] = useState(false);
   const [rawDownPaymentPercent, setRawDownPaymentPercent] = useState('');
   
+  // Conversion optimization - Email capture and viral sharing
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [hasCalculated, setHasCalculated] = useState(false);
+  
+  // Phase 3 Features
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('USD');
+  const [showCurrentRates, setShowCurrentRates] = useState(false); // Toggle for showing/hiding current rates display
+
+  // Update global currency when selection changes and force re-render
+  const [currencyRenderKey, setCurrencyRenderKey] = useState(0);
+  useEffect(() => {
+    setGlobalCurrency(selectedCurrency);
+    // Force re-render of all components using currency
+    setCurrencyRenderKey(prev => prev + 1);
+  }, [selectedCurrency]);
+  
   // Convenience aliases for backward compatibility
   const homeValue = homeValueInput.value;
   const downPayment = downPaymentInput.value;
@@ -154,6 +179,18 @@ const MortgageCalculator: React.FC = () => {
   const endDate = calculations.endDate;
   const schedule = calculations.schedule;
   const yearsToPayoff = calculations.yearsToPayoff;
+  
+  // Trigger email capture after calculation (conversion optimization)
+  useEffect(() => {
+    if (!hasCalculated && schedule.length > 0) {
+      setHasCalculated(true);
+      // Show email capture modal after 3 seconds (after user sees results)
+      const timer = setTimeout(() => {
+        setShowEmailCapture(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasCalculated, schedule.length]);
   
   // Calculate monthly additional costs (moved here after loanAmount is available)
   const monthlyPropertyTax = propertyTaxPeriod === 'year' ? propertyTax / 12 : propertyTax;
@@ -202,7 +239,8 @@ const MortgageCalculator: React.FC = () => {
   // const totalReturn10Year = (annualCashFlow * 10) + (futureValue10Year - homeValueInput.value);
   
   // Calculate scenario comparisons - Using helper functions to eliminate duplication
-  const calculateScenario = (scenario: { homeValue: number; downPayment: number; interestRate: number; tenure: number; paymentType: PaymentType }) => {
+  // Memoized with useCallback to prevent unnecessary recalculations
+  const calculateScenario = useCallback((scenario: { homeValue: number; downPayment: number; interestRate: number; tenure: number; paymentType: PaymentType }) => {
     const loanAmount = scenario.homeValue - scenario.downPayment;
     
     if (scenario.paymentType === 'monthly') {
@@ -238,22 +276,25 @@ const MortgageCalculator: React.FC = () => {
         tenure: Number(actualYears.toFixed(1))
       };
     }
-  };
+  }, []);
 
-  const scenarioBCalc = calculateScenario(scenarioB);
-  const scenarioCCalc = calculateScenario(scenarioC);
+  // Memoize scenario calculations to avoid recalculating on every render
+  const scenarioBCalc = useMemo(() => calculateScenario(scenarioB), [calculateScenario, scenarioB]);
+  const scenarioCCalc = useMemo(() => calculateScenario(scenarioC), [calculateScenario, scenarioC]);
   
   // Calculate current scenario WITHOUT extra payments for fair comparison
-  const currentScenarioBase = calculateScenario({
+  // Memoized to avoid recalculation on every render
+  const currentScenarioBase = useMemo(() => calculateScenario({
     homeValue: homeValueInput.value,
     downPayment: downPaymentInput.value,
     interestRate: interestRate,
     tenure: tenure,
     paymentType: paymentType
-  });
+  }), [calculateScenario, homeValueInput.value, downPaymentInput.value, interestRate, tenure, paymentType]);
   
   // Calculate refinance analysis - Using helper functions to eliminate duplication
-  const calculateRefinance = () => {
+  // Memoized with useCallback to prevent unnecessary recalculations
+  const calculateRefinance = useCallback(() => {
     const monthlyRate = refinanceData.currentRate / 100 / 12;
     
     // Calculate remaining months from payoff date
@@ -346,9 +387,10 @@ const MortgageCalculator: React.FC = () => {
       timeDifference,
       worthIt: totalSavings > 0 && breakEvenMonths < finalRemainingMonths
     };
-  };
+  }, [refinanceData, paymentAmount]);
   
-  const refinanceCalc = calculateRefinance();
+  // Memoize refinance calculation result
+  const refinanceCalc = useMemo(() => calculateRefinance(), [calculateRefinance]);
   
   // Calculate savings based on comparison mode
   let interestSaved, timeSaved;
@@ -373,7 +415,8 @@ const MortgageCalculator: React.FC = () => {
   const isExtraPaymentComparison = comparisonMode === 'extra-payments';
 
   // Chart data for balance over time
-  const chartData = schedule
+  // Memoized to avoid recalculating on every render
+  const chartData = useMemo(() => schedule
     .filter((_, i) => i % Math.ceil(schedule.length / 100) === 0 || i === schedule.length - 1)
     .map(item => ({
       date: item.date,
@@ -381,10 +424,11 @@ const MortgageCalculator: React.FC = () => {
       principal: loanAmount - item.balance,
       interest: item.totalInterest,
       cumulative: item.totalInterest + (loanAmount - item.balance)
-    }));
+    })), [schedule, loanAmount]);
 
   // Excel Export Handler
-  const handleExportToExcel = async () => {
+  // Memoized with useCallback to prevent recreation on every render
+  const handleExportToExcel = useCallback(async () => {
     try {
       // Prepare primary mortgage data
       const primaryData = {
@@ -514,10 +558,82 @@ const MortgageCalculator: React.FC = () => {
       console.error('Error exporting to Excel:', error);
       alert('Failed to export to Excel. Please try again.');
     }
-  };
+  }, [
+    homeValue, downPayment, loanAmount, interestRate, tenure, paymentAmount,
+    totalInterest, totalPaid, endDate, schedule, chartData, paymentType,
+    extraPaymentEnabled, extraPaymentAmount, propertyType, monthlyRentInput.value,
+    vacancyRate, effectiveMonthlyRent, propertyManagementPercent, maintenanceInput.value,
+    utilitiesInput.value, propertyAppreciationRate, monthlyCashFlow, annualCashFlow,
+    cashOnCashReturn, capRate, breakEvenOccupancy, netOperatingIncome,
+    totalOperatingExpenses, futureMonthlyRent5Year, futureMonthlyRent10Year,
+    futureMonthlyRent15Year, showScenarioComparison, currentScenarioBase,
+    scenarioBCalc, scenarioCCalc, scenarioB, scenarioC, showRefinanceAnalysis,
+    refinanceCalc, refinanceData
+  ]);
+
+  // Export to PDF
+  const handleExportToPDF = useCallback(() => {
+    try {
+      const currencySymbol = CURRENCY_DATA[selectedCurrency].symbol;
+      exportToPDF({
+        homeValue,
+        downPayment,
+        loanAmount,
+        interestRate,
+        tenure,
+        paymentAmount,
+        totalInterest,
+        totalPaid,
+        endDate,
+        schedule,
+        currency: currencySymbol,
+        propertyTax: propertyTax > 0 ? propertyTax : undefined,
+        insurance: homeInsurance > 0 ? homeInsurance : undefined,
+      });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      alert('Failed to export to PDF. Please try again.');
+    }
+  }, [homeValue, downPayment, loanAmount, interestRate, tenure, paymentAmount, totalInterest, totalPaid, endDate, schedule, selectedCurrency, propertyTax, homeInsurance]);
+
+  // Export to CSV (amortization schedule only)
+  const handleExportToCSV = useCallback(() => {
+    try {
+      const headers = ['Payment #', 'Date', 'Payment', 'Principal', 'Interest', 'Balance', 'Total Interest'];
+      const rows = schedule.map(item => [
+        item.paymentNum.toString(),
+        item.date,
+        item.payment.toFixed(2),
+        item.principal.toFixed(2),
+        item.interest.toFixed(2),
+        item.balance.toFixed(2),
+        item.totalInterest.toFixed(2)
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `amortization-schedule-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      alert('Failed to export to CSV. Please try again.');
+    }
+  }, [schedule]);
 
   // Comparison bar chart data
-  const comparisonBarData = isExtraPaymentComparison
+  // Memoized to avoid recalculation on every render
+  const comparisonBarData = useMemo(() => isExtraPaymentComparison
     ? [
         { 
           name: `Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'}`, 
@@ -549,10 +665,27 @@ const MortgageCalculator: React.FC = () => {
           label: 'Bi-weekly Payments',
           endDate: formatDate(paymentType === 'biweekly' ? endDate : comparisonCalc.endDate)
         }
-      ];
+      ], [isExtraPaymentComparison, paymentType, comparisonCalc.totalInterest, comparisonCalc.endDate, totalInterest, endDate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
+    <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
+      {/* Social Proof Banner */}
+      <SocialProofBanner />
+      
+      {/* Email Capture Modal */}
+      <EmailCaptureModal
+        isOpen={showEmailCapture}
+        onClose={() => setShowEmailCapture(false)}
+        calculationSummary={{
+          loanAmount,
+          monthlyPayment: paymentAmount,
+          totalInterest,
+          totalPaid,
+          yearsToPayoff,
+          paymentType: paymentType
+        }}
+      />
+      
       {/* Animated Background Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
@@ -565,9 +698,17 @@ const MortgageCalculator: React.FC = () => {
         
         {/* Property Type Toggle and Heading */}
         <div className="mb-3 sm:mb-4 animate-slideDown">
+          {/* Currency Selector - Top Right */}
+          <div className="flex justify-end mb-3">
+            <CurrencySelector 
+              selectedCurrency={selectedCurrency}
+              onCurrencyChange={setSelectedCurrency}
+            />
+          </div>
+
           {/* Centered Heading */}
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2 mb-3">
-            Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
+            Free Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
           </h1>
           
           {/* Toggle - Below Header, Centered */}
@@ -720,8 +861,18 @@ const MortgageCalculator: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider" style={{ color: '#334155' }}>
-                    Interest Rate (%)
+                  <label className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider" style={{ color: '#334155' }}>
+                    <span>Interest Rate (%)</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentRates(!showCurrentRates)}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 normal-case tracking-normal flex items-center gap-1 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      {showCurrentRates ? 'Hide' : 'Show'} Current Rates
+                    </button>
                   </label>
                   <input
                     type="text"
@@ -733,6 +884,19 @@ const MortgageCalculator: React.FC = () => {
                     className={INPUT_STYLE}
                     style={{ overflow: 'visible' }}
                   />
+                  
+                  {/* Current Mortgage Rates - Collapsible */}
+                  {showCurrentRates && (
+                    <div className="mt-2 animate-slideDown">
+                      <CurrentRatesDisplay 
+                        currency={selectedCurrency}
+                        onApplyRate={(rate) => {
+                          interestRateInput.setValue(rate);
+                          setShowCurrentRates(false); // Auto-close after selection
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -898,7 +1062,7 @@ const MortgageCalculator: React.FC = () => {
                                 }
                               }}
                               className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-gray-900 focus:border-gray-900 transition-colors text-xs"
-                              placeholder="$0"
+                              placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0`}
                             />
                           </div>
                           <div>
@@ -969,7 +1133,7 @@ const MortgageCalculator: React.FC = () => {
                               setPropertyTax(val === '' ? 0 : Number(val));
                             }}
                             className={INPUT_STYLE}
-                            placeholder="$0"
+                            placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0`}
                           />
                         </div>
                         <div>
@@ -1001,7 +1165,7 @@ const MortgageCalculator: React.FC = () => {
                               setHomeInsurance(val === '' ? 0 : Number(val));
                             }}
                             className={INPUT_STYLE}
-                            placeholder="$0"
+                            placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0`}
                           />
                         </div>
                         <div>
@@ -1035,7 +1199,7 @@ const MortgageCalculator: React.FC = () => {
                             setPmiAmount(val === '' ? 0 : Number(val));
                           }}
                           className={INPUT_STYLE}
-                          placeholder="$0/month"
+                          placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0/month`}
                         />
                         <p className="text-[10px] text-slate-500 mt-0.5">
                           {downPayment / homeValue < 0.2 
@@ -1057,7 +1221,7 @@ const MortgageCalculator: React.FC = () => {
                             setHoaFees(val === '' ? 0 : Number(val));
                           }}
                           className={INPUT_STYLE}
-                          placeholder="$0/month"
+                          placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0/month`}
                         />
                       </div>
 
@@ -1612,7 +1776,7 @@ const MortgageCalculator: React.FC = () => {
                           height={60}
                         />
                         <YAxis 
-                          tickFormatter={formatCurrencyCompact}
+                          tickFormatter={(value) => formatCurrencyCompact(value)}
                           tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                           stroke="#94a3b8"
                           label={{ value: 'Interest Paid', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#475569', fontWeight: 700 } }}
@@ -1643,11 +1807,11 @@ const MortgageCalculator: React.FC = () => {
                           radius={[8, 8, 0, 0]}
                           animationDuration={800}
                           animationEasing="ease-out"
-                          shape={(props: any) => {
-                            const { x, y, width, height, payload } = props;
+                          shape={(props: { x?: number; y?: number; width?: number; height?: number; value?: number; payload?: { type?: string; name?: string; label?: string; endDate?: string } }) => {
+                            const { x = 0, y = 0, width = 0, height = 0, payload } = props;
                             const fillColor = isExtraPaymentComparison
-                              ? (payload.type === 'comparison' ? 'url(#redBarGradient)' : 'url(#greenBarGradient)')
-                              : (payload.type === 'monthly' ? 'url(#redBarGradient)' : 'url(#greenBarGradient)');
+                              ? (payload?.type === 'comparison' ? 'url(#redBarGradient)' : 'url(#greenBarGradient)')
+                              : (payload?.type === 'monthly' ? 'url(#redBarGradient)' : 'url(#greenBarGradient)');
                             
                             return (
                               <g>
@@ -1722,7 +1886,7 @@ const MortgageCalculator: React.FC = () => {
                   
                   <div className="sr-only">
                     <h3>Amortization Overview Chart</h3>
-                    <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to $0), Principal Paid (increasing from $0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
+                    <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to {CURRENCY_DATA[selectedCurrency].symbol}0), Principal Paid (increasing from {CURRENCY_DATA[selectedCurrency].symbol}0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
                   </div>
                   <ResponsiveContainer width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
                     <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} aria-label="Mortgage amortization area chart">
@@ -1758,10 +1922,10 @@ const MortgageCalculator: React.FC = () => {
                         stroke="#94a3b8"
                       />
                       <YAxis 
-                        tickFormatter={formatCurrencyCompact}
+                        tickFormatter={(value) => formatCurrencyCompact(value)}
                         tick={{ fontSize: 10, fill: '#64748b' }}
                         stroke="#94a3b8"
-                        label={{ value: 'Amount ($)', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#334155', fontWeight: 600 } }}
+                        label={{ value: `Amount (${CURRENCY_DATA[selectedCurrency].symbol})`, angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#334155', fontWeight: 600 } }}
                       />
                       <Tooltip 
                         contentStyle={{ 
@@ -1826,6 +1990,47 @@ const MortgageCalculator: React.FC = () => {
 
                 {/* Amortization Table */}
                 <AmortizationTable schedule={schedule} />
+
+                {/* Export & Share Actions Section - Moved here for visibility */}
+                <div className="mt-4 mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      Save & Share Your Results
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Download complete reports in Excel, PDF, or CSV format
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                    <div className="flex-1">
+                      <ExportDropdown 
+                        onExportExcel={handleExportToExcel}
+                        onExportPDF={handleExportToPDF}
+                        onExportCSV={handleExportToCSV}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setShowEmailCapture(true)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 text-base"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                      </svg>
+                      Email Results
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs text-slate-600 space-y-1">
+                    <p className="font-semibold">Report Includes:</p>
+                    <ul className="list-disc list-inside space-y-0.5 ml-2">
+                      <li>Complete amortization schedule</li>
+                      {propertyType === 'investment' && <li>Investment Property Analysis with cash flow projections</li>}
+                      {showScenarioComparison && <li>Loan Comparison Charts</li>}
+                      {showRefinanceAnalysis && <li>Refinance Analysis with break-even point</li>}
+                    </ul>
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -1852,7 +2057,7 @@ const MortgageCalculator: React.FC = () => {
               
               <div className="sr-only">
                 <h3>Amortization Overview Chart</h3>
-                <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to $0), Principal Paid (increasing from $0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
+                <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to {CURRENCY_DATA[selectedCurrency].symbol}0), Principal Paid (increasing from {CURRENCY_DATA[selectedCurrency].symbol}0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
               </div>
               <ResponsiveContainer width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
                 <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} aria-label="Mortgage amortization area chart">
@@ -1888,7 +2093,7 @@ const MortgageCalculator: React.FC = () => {
                     stroke="#94a3b8"
                   />
                   <YAxis 
-                    tickFormatter={formatCurrencyCompact}
+                    tickFormatter={(value) => formatCurrencyCompact(value)}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                     stroke="#94a3b8"
                   />
@@ -1949,6 +2154,47 @@ const MortgageCalculator: React.FC = () => {
 
             {/* Amortization Table */}
             <AmortizationTable schedule={schedule} />
+
+            {/* Export & Share Actions Section - Moved here for visibility */}
+            <div className="mt-4 mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  Save & Share Your Results
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Download complete reports in Excel, PDF, or CSV format
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                <div className="flex-1">
+                  <ExportDropdown 
+                    onExportExcel={handleExportToExcel}
+                    onExportPDF={handleExportToPDF}
+                    onExportCSV={handleExportToCSV}
+                  />
+                </div>
+                <button
+                  onClick={() => setShowEmailCapture(true)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 text-base"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                  </svg>
+                  Email Results
+                </button>
+              </div>
+              <div className="mt-3 text-xs text-slate-600 space-y-1">
+                <p className="font-semibold">Report Includes:</p>
+                <ul className="list-disc list-inside space-y-0.5 ml-2">
+                  <li>Complete amortization schedule</li>
+                  {propertyType === 'investment' && <li>Investment Property Analysis with cash flow projections</li>}
+                  {showScenarioComparison && <li>Loan Comparison Charts</li>}
+                  {showRefinanceAnalysis && <li>Refinance Analysis with break-even point</li>}
+                </ul>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -2843,7 +3089,7 @@ const MortgageCalculator: React.FC = () => {
           
           {/* Subheading */}
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 text-center border-b-2 border-blue-500 pb-3">
-            All-In-One Mortgage & Rental Property Calculator for Homebuyers & Investors
+            Free Mortgage Calculator with Investment Property Analysis & Loan Comparison
           </h2>
           
           {/* Intro Paragraph */}
@@ -3159,45 +3405,6 @@ const MortgageCalculator: React.FC = () => {
             </div>
           </div>
 
-          {/* Export to Excel Section */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
-                  <span className="text-2xl">📊</span>
-                  Download Complete Report to Excel
-                </h3>
-                <p className="text-sm text-slate-600">
-                  Export all your mortgage calculations, charts, and analysis to Excel with multiple sheets
-                </p>
-              </div>
-              <button
-                onClick={handleExportToExcel}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 text-base whitespace-nowrap"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download Excel Report
-              </button>
-            </div>
-            <div className="mt-3 text-xs text-slate-600 space-y-1">
-              <p className="font-semibold">Includes:</p>
-              <ul className="list-disc list-inside space-y-0.5 ml-2">
-                <li>Sheet 1: Primary Mortgage (with amortization chart)</li>
-                {propertyType === 'investment' && <li>Sheet 2: Investment Property Analysis (with cash flow projections)</li>}
-                {showScenarioComparison && <li>Sheet 3: Compare Loans (with comparison chart)</li>}
-                {showRefinanceAnalysis && <li>Sheet 4: Refinance Analysis (with comparison chart)</li>}
-              </ul>
-            </div>
-          </div>
-
-          {/* Share Section */}
-          <div className="mb-8 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-3">Love This Calculator? Share It!</h3>
-            <ShareButtons />
-          </div>
-
           {/* Call to Action */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border-2 border-blue-300 text-center mb-8">
             <h3 className="text-xl font-bold text-slate-800 mb-2">Ready to Optimize Your Mortgage?</h3>
@@ -3232,6 +3439,28 @@ const MortgageCalculator: React.FC = () => {
 
         </div>
       </div>
+
+      {/* Viral Share & Email Capture Section */}
+      {hasCalculated && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
+          <ViralShareResults
+            calculationData={{
+              savingsAmount: interestSaved,
+              savingsYears: timeSaved,
+              paymentType: paymentType,
+              loanAmount,
+              totalInterest,
+              monthlyPayment: paymentAmount
+            }}
+          />
+        </div>
+      )}
+
+      {/* Testimonials Section */}
+      <Testimonials />
+
+      {/* SEO Content Section - Educational content and FAQs for better search rankings */}
+      <SEOContent />
     </div>
   );
 };
