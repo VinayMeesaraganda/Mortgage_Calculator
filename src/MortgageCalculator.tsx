@@ -1273,103 +1273,85 @@ const MortgageCalculator: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Side - Payment Summary, Cost Breakdown, and Comparison */}
-          <div className="lg:col-span-3 space-y-3">
-            {/* Payment Summary OR Investment Analysis (Full Width for Investment) */}
-            <div className={propertyType === 'investment' ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3'}>
+          {/* Right Side - Payment Summary, Cost Breakdown, and Comparison - Compact */}
+          <div className="lg:col-span-3 space-y-2">
+            {/* Payment Summary OR Investment Analysis (Full Width for Investment) - Compact */}
+            <div className={propertyType === 'investment' ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
               {propertyType === 'primary' ? (
                 <>
-                  {/* Primary Home - Payment Summary */}
+                  {/* Primary Home - Payment Summary - Compact */}
                   <div className={CARD_STYLE} style={CARD_SHADOW}>
                     <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-xl pointer-events-none"></div>
-                    <div className="relative p-3">
-                      <h2 className="text-base font-serif text-slate-800 mb-2 tracking-wide border-b-2 pb-1.5 font-bold relative" style={{ borderImage: 'linear-gradient(to right, rgb(148, 163, 184), rgb(203, 213, 225)) 1' }}>
+                    <div className="relative p-2">
+                      <h2 className="text-sm font-serif text-slate-800 mb-1.5 tracking-wide border-b-2 pb-1 font-bold relative" style={{ borderImage: 'linear-gradient(to right, rgb(148, 163, 184), rgb(203, 213, 225)) 1' }}>
                         Payment Summary
-                        <div className="absolute -bottom-0.5 left-0 w-12 h-0.5 bg-gradient-to-r from-slate-500 to-gray-500 animate-pulse"></div>
+                        <div className="absolute -bottom-0.5 left-0 w-10 h-0.5 bg-gradient-to-r from-slate-500 to-gray-500"></div>
                       </h2>
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200">
-                            <th className="text-left py-1 px-1 font-semibold text-slate-600 uppercase tracking-wider">Metric</th>
-                            <th className="text-right py-1 px-1 font-semibold text-slate-600 uppercase tracking-wider">Value</th>
-                          </tr>
-                        </thead>
+                      <table className="w-full text-[11px]">
                         <tbody>
                           <tr className="border-b border-slate-100">
-                            <td className="py-1.5 px-1 text-slate-700">Loan Amount</td>
-                            <td className="py-1.5 px-1 text-right font-semibold text-slate-900">{formatCurrency(loanAmount)}</td>
+                            <td className="py-1 px-1 text-slate-700">Loan Amount</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900">{formatCurrency(loanAmount)}</td>
                           </tr>
                           <tr className="border-b border-slate-100">
-                            <td className="py-1.5 px-1 text-slate-700">Mortgage Payment</td>
-                            <td className="py-1.5 px-1 text-right font-semibold text-slate-900">{formatCurrency(paymentAmount)}</td>
+                            <td className="py-1 px-1 text-slate-700">Payment</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900">{formatCurrency(paymentAmount)}</td>
                           </tr>
                           {totalMonthlyCosts > 0 && (
-                            <>
-                              <tr className="border-b border-slate-100">
-                                <td className="py-1.5 px-1 text-slate-700 pl-3 text-[11px]">+ Additional Costs</td>
-                                <td className="py-1.5 px-1 text-right font-semibold text-blue-600">{formatCurrency(totalMonthlyCosts)}</td>
-                              </tr>
-                              <tr className="border-b-2 border-blue-300 bg-blue-50">
-                                <td className="py-1.5 px-1 text-slate-800 font-bold">True Monthly Cost</td>
-                                <td className="py-1.5 px-1 text-right font-bold text-blue-700">{formatCurrency(trueMonthlyPayment)}</td>
-                              </tr>
-                            </>
+                            <tr className="border-b-2 border-blue-300 bg-blue-50">
+                              <td className="py-1 px-1 text-slate-800 font-bold text-[10px]">Total Monthly</td>
+                              <td className="py-1 px-1 text-right font-bold text-blue-700">{formatCurrency(trueMonthlyPayment)}</td>
+                            </tr>
                           )}
-                          <tr className="border-b border-slate-100">
-                            <td className="py-1.5 px-1 text-slate-700">Total Paid & Duration</td>
-                            <td className="py-1.5 px-1 text-right font-semibold text-slate-900">{formatCurrency(totalPaid)} / {formatYearsMonths(yearsToPayoff)}</td>
-                          </tr>
                           <tr>
-                            <td className="py-1.5 px-1 text-slate-700">End Date</td>
-                            <td className="py-1.5 px-1 text-right font-semibold text-slate-900">{formatDate(endDate)}</td>
+                            <td className="py-1 px-1 text-slate-700 text-[10px]">Paid / Term</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900 text-[10px]">{formatCurrency(totalPaid)} / {formatYearsMonths(yearsToPayoff)}</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
 
-                  {/* Primary Home - Cost Breakdown */}
+                  {/* Primary Home - Cost Breakdown - Compact */}
                   <div className={CARD_STYLE} style={CARD_SHADOW}>
                     <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-xl pointer-events-none"></div>
-                    <div className="relative p-3">
-                      <h2 className="text-base font-serif text-slate-800 mb-2 tracking-wide border-b-2 pb-1.5 font-bold relative flex items-center" style={{ borderImage: 'linear-gradient(to right, rgb(148, 163, 184), rgb(203, 213, 225)) 1' }}>
+                    <div className="relative p-2">
+                      <h2 className="text-sm font-serif text-slate-800 mb-1.5 tracking-wide border-b-2 pb-1 font-bold relative flex items-center" style={{ borderImage: 'linear-gradient(to right, rgb(148, 163, 184), rgb(203, 213, 225)) 1' }}>
                         Cost Breakdown
                         <HelpTooltip content="Shows how your total payment is divided between the actual loan amount (principal) and the cost of borrowing (interest)." />
-                        <div className="absolute -bottom-0.5 left-0 w-12 h-0.5 bg-gradient-to-r from-slate-500 to-gray-500 animate-pulse"></div>
+                        <div className="absolute -bottom-0.5 left-0 w-10 h-0.5 bg-gradient-to-r from-slate-500 to-gray-500"></div>
                       </h2>
-                      <div className="flex flex-row gap-3 mb-3">
-                    <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-3 border-2 border-emerald-300/60 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300"></div>
+                      <div className="flex flex-row gap-2 mb-2">
+                    <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2 border-2 border-emerald-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
                       <div className="relative text-center">
-                        <div className="text-lg font-serif font-bold text-emerald-700 mb-0.5">
+                        <div className="text-base font-serif font-bold text-emerald-700 mb-0.5">
                           {((loanAmount / totalPaid) * 100).toFixed(0)}%
                         </div>
-                        <div className="text-xs text-emerald-600 uppercase tracking-wide font-medium">
+                        <div className="text-[10px] text-emerald-600 uppercase tracking-wide font-medium">
                           Principal
                         </div>
-                        <div className="text-xs text-emerald-700 font-semibold mt-1">
+                        <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
                           {formatCurrency(loanAmount)}
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-gradient-to-br from-red-50/80 to-rose-100/80 rounded-lg p-3 border-2 border-red-300/60 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-red-400 backdrop-blur-sm relative overflow-hidden group/card">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300"></div>
+                    <div className="flex-1 bg-gradient-to-br from-red-50/80 to-rose-100/80 rounded-lg p-2 border-2 border-red-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-red-400 backdrop-blur-sm relative overflow-hidden group/card">
                       <div className="relative text-center">
-                        <div className="text-lg font-serif font-bold text-red-700 mb-0.5">
+                        <div className="text-base font-serif font-bold text-red-700 mb-0.5">
                           {((totalInterest / totalPaid) * 100).toFixed(0)}%
                         </div>
-                        <div className="text-xs text-red-600 uppercase tracking-wide font-medium">
+                        <div className="text-[10px] text-red-600 uppercase tracking-wide font-medium">
                           Interest
                         </div>
-                        <div className="text-xs text-red-700 font-semibold mt-1">
+                        <div className="text-[10px] text-red-700 font-semibold mt-0.5">
                           {formatCurrency(totalInterest)}
                         </div>
                       </div>
                     </div>
                   </div>
                   
-                  {/* Visual Breakdown Bar */}
-                  <div className="mt-2">
+                  {/* Visual Breakdown Bar - Compact */}
+                  <div className="mt-1.5">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-xs font-semibold text-slate-600">Total Payment</span>
                       <span className="text-xs font-bold text-slate-800">{formatCurrency(totalPaid)}</span>
@@ -1679,61 +1661,73 @@ const MortgageCalculator: React.FC = () => {
             <div className={CARD_STYLE} style={CARD_SHADOW}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-xl pointer-events-none"></div>
               <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-green-400/10 to-transparent rounded-bl-full"></div>
-              <div className="relative p-3">
-                <div className="mb-2">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-serif text-slate-800 tracking-wide font-bold relative">
-                      Payment Plan Comparison
-                      <div className="absolute -bottom-0.5 left-0 w-12 h-0.5 bg-gradient-to-r from-green-500 to-emerald-500 animate-pulse"></div>
-                    </h2>
-                    <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {isExtraPaymentComparison ? 'Regular vs Extra Payments' : 'Monthly vs Bi-weekly'}
-                    </span>
+              <div className="relative p-2">
+                <div className="mb-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-serif text-slate-800 tracking-wide font-bold relative">
+                        Payment Plan Comparison
+                        <div className="absolute -bottom-0.5 left-0 w-10 h-0.5 bg-gradient-to-r from-green-500 to-emerald-500"></div>
+                      </h2>
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                        {isExtraPaymentComparison ? 'Regular vs Extra' : 'Monthly vs Bi-weekly'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Reset to default values
+                        interestRateInput.setValue(6.5);
+                        tenureInput.setValue(30);
+                        homeValueInput.setValue(400000);
+                        downPaymentInput.setValue(80000);
+                        setPaymentType('monthly');
+                        setExtraPaymentEnabled(false);
+                      }}
+                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
+                      title="Reset to default values"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reset
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-600 mt-1">
-                    {isExtraPaymentComparison 
-                      ? 'Extra payments help you save money by reducing your principal faster, which decreases the total interest paid over the loan term.' 
-                      : 'Bi-weekly payments result in one extra monthly payment per year, helping you pay off your mortgage faster and save on interest.'}
-                  </p>
+                  
+                  {/* Dynamic English Description */}
+                  <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-2 mb-1.5">
+                    <p className="text-[11px] text-slate-700 leading-relaxed">
+                      {isExtraPaymentComparison 
+                        ? `By making extra payments of ${formatCurrency(extraPaymentAmount)} ${extraPaymentFrequency === 'monthly' ? 'per month' : 'every two weeks'}, you'll save ${formatCurrency(interestSaved)} in interest and pay off your ${formatCurrency(loanAmount)} loan ${formatYearsMonths(timeSaved)} faster. The chart below shows how much less interest you'll pay compared to regular payments.`
+                        : `Switching from monthly to bi-weekly payments means you'll make 26 payments per year instead of 12, which equals one extra monthly payment annually. This strategy saves you ${formatCurrency(interestSaved)} in interest and helps you pay off your ${formatCurrency(loanAmount)} loan ${formatYearsMonths(timeSaved)} sooner. The chart compares total interest paid for both payment plans.`}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Savings Information - Clean, no redundant payment details */}
-                <div className="flex flex-row gap-2 mb-3">
-                  <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2.5 border-2 border-emerald-300/60 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300"></div>
+                {/* Savings Information - Compact */}
+                <div className="flex flex-row gap-2 mb-2">
+                  <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2 border-2 border-emerald-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
                     <div className="relative text-center">
-                      <div className="text-base font-serif font-bold text-emerald-700 mb-0.5">
+                      <div className="text-sm font-serif font-bold text-emerald-700 mb-0.5">
                         {formatCurrency(interestSaved)}
                       </div>
-                      <div className="text-[10px] text-emerald-600 uppercase tracking-wide font-medium">
+                      <div className="text-[9px] text-emerald-600 uppercase tracking-wide font-medium">
                         Interest Saved
-                      </div>
-                      <div className="text-[9px] text-emerald-500 mt-0.5">
-                        {isExtraPaymentComparison 
-                          ? 'vs Regular Payments' 
-                          : 'Bi-weekly vs Monthly'}
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2.5 border-2 border-emerald-300/60 shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300"></div>
+                  <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2 border-2 border-emerald-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
                     <div className="relative text-center">
-                      <div className="text-base font-serif font-bold text-emerald-700 mb-0.5">
+                      <div className="text-sm font-serif font-bold text-emerald-700 mb-0.5">
                         {formatYearsMonths(timeSaved)}
                       </div>
-                      <div className="text-[10px] text-emerald-600 uppercase tracking-wide font-medium">
+                      <div className="text-[9px] text-emerald-600 uppercase tracking-wide font-medium">
                         Time Saved
-                      </div>
-                      <div className="text-[9px] text-emerald-500 mt-0.5">
-                        {isExtraPaymentComparison 
-                          ? 'Pay off faster' 
-                          : 'Bi-weekly advantage'}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Comparison Bar Chart */}
+                {/* Comparison Bar Chart - Compact */}
                 <div className="flex justify-center">
                   <div className="w-full sm:w-3/4 md:w-1/2">
                     <div className="sr-only">
@@ -1744,8 +1738,8 @@ const MortgageCalculator: React.FC = () => {
                           : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest). Bi-weekly saves ${formatCurrency(interestSaved)} in interest.`}
                       </p>
                     </div>
-                    <ResponsiveContainer width="100%" height={280} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(comparisonCalc.totalInterest)} total interest versus Extra Payments with ${formatCurrency(totalInterest)} total interest, saving ${formatCurrency(interestSaved)}` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest, saving ${formatCurrency(interestSaved)}`}>
-                      <BarChart data={comparisonBarData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }} aria-label="Payment plan comparison bar chart">
+                    <ResponsiveContainer width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(comparisonCalc.totalInterest)} total interest versus Extra Payments with ${formatCurrency(totalInterest)} total interest, saving ${formatCurrency(interestSaved)}` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest, saving ${formatCurrency(interestSaved)}`}>
+                      <BarChart data={comparisonBarData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} aria-label="Payment plan comparison bar chart">
                         <defs>
                           <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
