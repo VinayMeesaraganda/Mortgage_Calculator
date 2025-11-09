@@ -1425,9 +1425,9 @@ const MortgageCalculator: React.FC = () => {
 
                 {/* Comparison Bar Chart */}
                 <div className="flex justify-center">
-                  <div style={{ width: '50%' }}>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={comparisonBarData} margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                  <div className="w-full sm:w-3/4 md:w-1/2">
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={comparisonBarData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
                         <defs>
                           <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
@@ -1451,15 +1451,19 @@ const MortgageCalculator: React.FC = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
                         <XAxis 
                           dataKey="name" 
-                          tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
+                          tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
                           stroke="#94a3b8"
+                          angle={0}
+                          textAnchor="middle"
+                          height={60}
                         />
                         <YAxis 
                           tickFormatter={formatCurrencyCompact}
-                          tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                          tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                           stroke="#94a3b8"
-                          label={{ value: 'Interest Paid', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#475569', fontWeight: 700 } }}
-                          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
+                          label={{ value: 'Interest Paid', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#475569', fontWeight: 700 } }}
+                          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.3)]}
+                          width={60}
                         />
                         <Tooltip 
                           content={({ active, payload }) => {
@@ -1519,8 +1523,9 @@ const MortgageCalculator: React.FC = () => {
                           <LabelList 
                             dataKey="interest" 
                             position="top" 
-                            formatter={(value: number) => formatCurrency(value)}
-                            style={{ fontSize: '11px', fontWeight: 700, fill: '#334155', textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}
+                            formatter={(value: number) => formatCurrencyCompact(value)}
+                            style={{ fontSize: '9px', fontWeight: 700, fill: '#334155', textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}
+                            offset={5}
                           />
                         </Bar>
                       </BarChart>
