@@ -84,15 +84,15 @@ export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }
       <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-xl pointer-events-none"></div>
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/10 to-transparent rounded-bl-full pointer-events-none"></div>
       
-      <div className="flex justify-between items-center mb-6 relative">
-        <h2 className="text-xl font-serif font-bold text-slate-800 tracking-tight">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2 mb-6 relative">
+        <h2 className="text-lg sm:text-xl font-serif font-bold text-slate-800 tracking-tight">
           Amortization Schedule
           <div className="absolute -bottom-1 left-0 w-16 h-0.5 bg-gradient-to-r from-indigo-500 to-blue-500"></div>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <button
             onClick={exportToCSV}
-            className={BUTTON_PRIMARY}
+            className={`${BUTTON_PRIMARY} w-full sm:w-auto justify-center`}
             title="Export to CSV"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
@@ -103,7 +103,7 @@ export const AmortizationTable: React.FC<AmortizationTableProps> = ({ schedule }
           </button>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className={`${BUTTON_SECONDARY} flex items-center gap-2 whitespace-nowrap`}
+            className={`${BUTTON_SECONDARY} flex items-center justify-center gap-2 w-full sm:w-auto`}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
             {isExpanded ? (
