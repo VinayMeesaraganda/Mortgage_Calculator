@@ -25,7 +25,8 @@ const MonthYearPickerComponent: React.FC<MonthYearPickerProps> = ({
   const popupRef = useRef<HTMLDivElement>(null);
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 50 }, (_, i) => currentYear + i);
+  // Generate years from 20 years ago to 10 years in the future (30 years total)
+  const years = Array.from({ length: 30 }, (_, i) => currentYear - 20 + i);
   const months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -136,15 +137,18 @@ const MonthYearPickerComponent: React.FC<MonthYearPickerProps> = ({
           {/* Year Selector */}
           <div className="mb-3">
             <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase">Year</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-full px-2 py-1.5 border-2 border-blue-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-            >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="w-full px-2 py-1.5 border-2 border-blue-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+              >
+                {years.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Scroll to see more years</p>
           </div>
 
           {/* Month Grid */}

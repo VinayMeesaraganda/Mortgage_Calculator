@@ -2,7 +2,8 @@
 // This file demonstrates the clean architecture using separated modules
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ChevronDown, ArrowLeft } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -31,8 +32,8 @@ import { AmortizationTable } from './components/AmortizationTable';
 import SEOContent from './components/SEOContent';
 import EmailCaptureModal from './components/EmailCaptureModal';
 import ViralShareResults from './components/ViralShareResults';
-import Testimonials from './components/Testimonials';
-import SocialProofBanner from './components/SocialProofBanner';
+// import Testimonials from './components/Testimonials';
+// import SocialProofBanner from './components/SocialProofBanner';
 import CurrencySelector from './components/CurrencySelector';
 import CurrentRatesDisplay from './components/CurrentRatesDisplay';
 import ExportDropdown from './components/ExportDropdown';
@@ -670,7 +671,7 @@ const MortgageCalculator: React.FC = () => {
   return (
     <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
       {/* Social Proof Banner */}
-      <SocialProofBanner />
+      {/* <SocialProofBanner /> */}
       
       {/* Email Capture Modal */}
       <EmailCaptureModal
@@ -698,12 +699,15 @@ const MortgageCalculator: React.FC = () => {
         
         {/* Property Type Toggle and Heading */}
         <div className="mb-3 sm:mb-4 animate-slideDown">
-          {/* Currency Selector - Top Right */}
-          <div className="flex justify-end mb-3">
-            <CurrencySelector 
-              selectedCurrency={selectedCurrency}
-              onCurrencyChange={setSelectedCurrency}
-            />
+          {/* Back to Home Link */}
+          <div className="flex justify-start mb-3 px-2">
+            <Link 
+              to="/" 
+              className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back to Home
+            </Link>
           </div>
 
           {/* Centered Heading */}
@@ -711,35 +715,46 @@ const MortgageCalculator: React.FC = () => {
             Free Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
           </h1>
           
-          {/* Toggle - Below Header, Centered */}
-          <div className="flex justify-center">
-            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
-              <button
-                onClick={() => setPropertyType('primary')}
-                className={`
-                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                  ${propertyType === 'primary' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                  }
-                `}
-              >
-                <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
-                <span>Primary</span>
-              </button>
-              <button
-                onClick={() => setPropertyType('investment')}
-                className={`
-                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                  ${propertyType === 'investment' 
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                  }
-                `}
-              >
-                <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
-                <span>Investment</span>
-              </button>
+          {/* Toggle and Currency Selector - Toggle Centered, Currency Right (Separate) */}
+          <div className="relative mb-3">
+            {/* Toggle - Centered */}
+            <div className="flex justify-center">
+              <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+                <button
+                  onClick={() => setPropertyType('primary')}
+                  className={`
+                    flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                    ${propertyType === 'primary' 
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                    }
+                  `}
+                >
+                  <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
+                  <span>Primary</span>
+                </button>
+                <button
+                  onClick={() => setPropertyType('investment')}
+                  className={`
+                    flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                    ${propertyType === 'investment' 
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                    }
+                  `}
+                >
+                  <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
+                  <span>Investment</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Currency Selector - Right Aligned (Absolute positioned) */}
+            <div className="absolute top-0 right-0 flex items-center">
+              <CurrencySelector 
+                selectedCurrency={selectedCurrency}
+                onCurrencyChange={setSelectedCurrency}
+              />
             </div>
           </div>
         </div>
@@ -3451,7 +3466,7 @@ const MortgageCalculator: React.FC = () => {
       )}
 
       {/* Testimonials Section */}
-      <Testimonials />
+      {/* <Testimonials /> */}
 
       {/* SEO Content Section - Educational content and FAQs for better search rankings */}
       <SEOContent />
