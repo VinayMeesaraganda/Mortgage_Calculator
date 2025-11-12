@@ -26,6 +26,7 @@ const StockInvestments: React.FC = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addingPurchaseToHoldingId, setAddingPurchaseToHoldingId] = useState<string | null>(null);
 
   // Update global currency when selected currency changes
   React.useEffect(() => {
@@ -121,6 +122,7 @@ const StockInvestments: React.FC = () => {
     setNewStockCurrentPrice('');
     setNewPurchasePrice('');
     setNewPurchaseQuantity('');
+    setAddingPurchaseToHoldingId(null);
     setShowAddForm(false);
   }, [holdings, newStockSymbol, newStockCurrentPrice, newPurchasePrice, newPurchaseQuantity, newPurchaseDate]);
 
@@ -257,6 +259,13 @@ const StockInvestments: React.FC = () => {
 
             {showAddForm && (
               <div className="bg-slate-50 rounded-lg p-4 border-2 border-green-200">
+                {addingPurchaseToHoldingId && (
+                  <div className="mb-4 p-3 bg-green-100 rounded-lg border border-green-300">
+                    <p className="text-sm font-semibold text-green-800">
+                      Adding another purchase to: <span className="font-bold">{newStockSymbol}</span>
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -268,7 +277,8 @@ const StockInvestments: React.FC = () => {
                       value={newStockSymbol}
                       onChange={(e) => setNewStockSymbol(e.target.value.toUpperCase())}
                       placeholder="e.g., AAPL"
-                      className={INPUT_STYLE}
+                      disabled={!!addingPurchaseToHoldingId}
+                      className={`${INPUT_STYLE} ${addingPurchaseToHoldingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                       maxLength={10}
                     />
                   </div>
@@ -282,7 +292,8 @@ const StockInvestments: React.FC = () => {
                       value={newStockCurrentPrice}
                       onChange={(e) => setNewStockCurrentPrice(e.target.value)}
                       placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
-                      className={INPUT_STYLE}
+                      disabled={!!addingPurchaseToHoldingId}
+                      className={`${INPUT_STYLE} ${addingPurchaseToHoldingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
@@ -450,10 +461,30 @@ const StockInvestments: React.FC = () => {
 
                     {/* Purchases List */}
                     <div>
-                      <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        Purchases ({holding.purchases.length})
-                        <HelpTooltip content="Multiple purchases of the same stock are automatically combined to calculate your average cost basis." />
-                      </h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          Purchases ({holding.purchases.length})
+                          <HelpTooltip content="Multiple purchases of the same stock are automatically combined to calculate your average cost basis." />
+                        </h4>
+                        <button
+                          onClick={() => {
+                            setAddingPurchaseToHoldingId(holding.id);
+                            setNewStockSymbol(holding.symbol);
+                            setNewStockCurrentPrice(holding.currentPrice.toString());
+                            setNewPurchasePrice('');
+                            setNewPurchaseQuantity('');
+                            setNewPurchaseDate(() => {
+                              const now = new Date();
+                              return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            });
+                            setShowAddForm(true);
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add Purchase
+                        </button>
+                      </div>
                       <div className="space-y-2">
                         {holding.purchases.map((purchase) => {
                           const isEditingPurchase = editingPurchaseId === purchase.id;

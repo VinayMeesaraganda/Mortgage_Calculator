@@ -39,7 +39,10 @@ const MutualFunds: React.FC = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
+  const [useManualNAV, setUseManualNAV] = useState(false);
+  const [manualNAV, setManualNAV] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addingPurchaseToHoldingId, setAddingPurchaseToHoldingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -214,7 +217,7 @@ const MutualFunds: React.FC = () => {
     } finally {
       setIsLoadingNAV(false);
     }
-  }, []);
+  }, [holdings, newSchemeCode, newSchemeName, newInvestmentAmount, newPurchaseDate, useManualNAV, manualNAV]);
 
   // Add new mutual fund or purchase to existing fund
   const handleAddFund = useCallback(async () => {
@@ -227,26 +230,48 @@ const MutualFunds: React.FC = () => {
       return;
     }
 
+    // If manual NAV is enabled, validate it
+    if (useManualNAV) {
+      const manualNavValue = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
+      if (isNaN(manualNavValue) || manualNavValue <= 0) {
+        alert('Please enter a valid NAV value');
+        return;
+      }
+    }
+
     setIsLoadingNAV(true);
     try {
-      // Fetch NAV for the purchase date (historical NAV)
-      const purchaseNavData = await getNAVForDate(schemeCode, newPurchaseDate);
-      if (!purchaseNavData) {
-        alert(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
-        setIsLoadingNAV(false);
-        return;
+      let purchaseNAV: number;
+      let currentNAV: number;
+
+      if (useManualNAV) {
+        // Use manually entered NAV
+        purchaseNAV = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
+        
+        // Still fetch current NAV for display (optional - can use manual NAV if fetch fails)
+        const currentNavData = await getLatestNAV(schemeCode);
+        currentNAV = currentNavData?.nav || purchaseNAV; // Fallback to purchase NAV if fetch fails
+      } else {
+        // Fetch NAV for the purchase date (historical NAV)
+        const purchaseNavData = await getNAVForDate(schemeCode, newPurchaseDate);
+        if (!purchaseNavData) {
+          alert(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
+          setIsLoadingNAV(false);
+          return;
+        }
+
+        // Fetch current/latest NAV for display
+        const currentNavData = await getLatestNAV(schemeCode);
+        if (!currentNavData) {
+          alert('Could not fetch current NAV. Please try again.');
+          setIsLoadingNAV(false);
+          return;
+        }
+
+        purchaseNAV = purchaseNavData.nav;
+        currentNAV = currentNavData.nav;
       }
 
-      // Fetch current/latest NAV for display
-      const currentNavData = await getLatestNAV(schemeCode);
-      if (!currentNavData) {
-        alert('Could not fetch current NAV. Please try again.');
-        setIsLoadingNAV(false);
-        return;
-      }
-
-      const purchaseNAV = purchaseNavData.nav;
-      const currentNAV = currentNavData.nav;
       const units = investmentAmount / purchaseNAV; // Calculate units based on purchase date NAV
 
       // Check if fund already exists
@@ -292,6 +317,9 @@ const MutualFunds: React.FC = () => {
       setNewSchemeCode('');
       setNewSchemeName('');
       setNewInvestmentAmount('');
+      setUseManualNAV(false);
+      setManualNAV('');
+      setAddingPurchaseToHoldingId(null);
       setShowAddForm(false);
     } catch (error) {
       console.error('Error adding fund:', error);
@@ -642,47 +670,54 @@ const MutualFunds: React.FC = () => {
 
             {showAddForm && (
               <div className="bg-slate-50 rounded-lg p-4 border-2 border-purple-200">
-                {/* Search for Mutual Funds */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Search Mutual Funds
-                    <HelpTooltip content="Search for mutual funds by name. Results are fetched from MFapi.in (India's free mutual fund API)." />
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder="e.g., HDFC Large Cap Fund"
-                      className={`${INPUT_STYLE} flex-1`}
-                    />
-                    <button
-                      onClick={handleSearch}
-                      disabled={isSearching}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                      Search
-                    </button>
+                {addingPurchaseToHoldingId ? (
+                  <div className="mb-4 p-3 bg-purple-100 rounded-lg border border-purple-300">
+                    <p className="text-sm font-semibold text-purple-800">
+                      Adding another purchase to: <span className="font-bold">{newSchemeName}</span>
+                    </p>
                   </div>
-                  
-                  {/* Search Results */}
-                  {searchResults.length > 0 && (
-                    <div className="mt-2 bg-white border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                      {searchResults.map((result, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleSelectFund(result.schemeCode, result.schemeName)}
-                          className="w-full text-left px-4 py-2 hover:bg-purple-50 border-b border-slate-100 last:border-b-0 transition-colors"
-                        >
-                          <div className="font-semibold text-slate-800">{result.schemeName}</div>
-                          <div className="text-xs text-slate-500">Code: {result.schemeCode}</div>
-                        </button>
-                      ))}
+                ) : (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Search Mutual Funds
+                      <HelpTooltip content="Search for mutual funds by name. Results are fetched from MFapi.in (India's free mutual fund API)." />
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        placeholder="e.g., HDFC Large Cap Fund"
+                        className={`${INPUT_STYLE} flex-1`}
+                      />
+                      <button
+                        onClick={handleSearch}
+                        disabled={isSearching}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        Search
+                      </button>
                     </div>
-                  )}
-                </div>
+                    
+                    {/* Search Results */}
+                    {searchResults.length > 0 && (
+                      <div className="mt-2 bg-white border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
+                        {searchResults.map((result, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSelectFund(result.schemeCode, result.schemeName)}
+                            className="w-full text-left px-4 py-2 hover:bg-purple-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                          >
+                            <div className="font-semibold text-slate-800">{result.schemeName}</div>
+                            <div className="text-xs text-slate-500">Code: {result.schemeCode}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
@@ -694,7 +729,8 @@ const MutualFunds: React.FC = () => {
                       value={newSchemeCode}
                       onChange={(e) => setNewSchemeCode(e.target.value)}
                       placeholder="e.g., 101206"
-                      className={INPUT_STYLE}
+                      disabled={!!addingPurchaseToHoldingId}
+                      className={`${INPUT_STYLE} ${addingPurchaseToHoldingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
@@ -706,7 +742,8 @@ const MutualFunds: React.FC = () => {
                       value={newSchemeName}
                       onChange={(e) => setNewSchemeName(e.target.value)}
                       placeholder="e.g., HDFC Large Cap Fund"
-                      className={INPUT_STYLE}
+                      disabled={!!addingPurchaseToHoldingId}
+                      className={`${INPUT_STYLE} ${addingPurchaseToHoldingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                     />
                   </div>
                   <div>
@@ -732,6 +769,45 @@ const MutualFunds: React.FC = () => {
                     />
                   </div>
                 </div>
+                
+                {/* Manual NAV Entry Option */}
+                <div className="mt-4 p-4 bg-slate-50 rounded-lg border-2 border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useManualNAV}
+                      onChange={(e) => {
+                        setUseManualNAV(e.target.checked);
+                        if (!e.target.checked) {
+                          setManualNAV(''); // Clear manual NAV when unchecked
+                        }
+                      }}
+                      className="w-4 h-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500 focus:ring-2"
+                    />
+                    <span className="text-sm font-semibold text-slate-700">
+                      Enter NAV manually (allotment price or custom NAV)
+                    </span>
+                  </label>
+                  
+                  {useManualNAV && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        NAV at Purchase Date <span className="text-red-500">*</span>
+                        <HelpTooltip content="Enter the NAV (Net Asset Value) at the time of purchase. This is typically the allotment price for new investments." />
+                      </label>
+                      <input
+                        type="text"
+                        value={manualNAV}
+                        onChange={(e) => setManualNAV(e.target.value)}
+                        placeholder="e.g., 45.25"
+                        className={INPUT_STYLE}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Units will be calculated as: Investment Amount ÷ NAV
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={handleAddFund}
                   disabled={isLoadingNAV}
@@ -745,7 +821,7 @@ const MutualFunds: React.FC = () => {
                   ) : (
                     <>
                       <Check className="w-5 h-5" />
-                      Add to Portfolio
+                      {addingPurchaseToHoldingId ? 'Add Purchase' : 'Add to Portfolio'}
                     </>
                   )}
                 </button>
@@ -845,10 +921,31 @@ const MutualFunds: React.FC = () => {
 
                     {/* Purchases List */}
                     <div>
-                      <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        Purchases ({holding.purchases.length})
-                        <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
-                      </h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          Purchases ({holding.purchases.length})
+                          <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
+                        </h4>
+                        <button
+                          onClick={() => {
+                            setAddingPurchaseToHoldingId(holding.id);
+                            setNewSchemeCode(holding.schemeCode);
+                            setNewSchemeName(holding.schemeName);
+                            setNewInvestmentAmount('');
+                            setNewPurchaseDate(() => {
+                              const now = new Date();
+                              return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            });
+                            setUseManualNAV(false);
+                            setManualNAV('');
+                            setShowAddForm(true);
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add Purchase
+                        </button>
+                      </div>
                       <div className="space-y-2">
                         {holding.purchases.map((purchase) => {
                           const isEditingPurchase = editingPurchaseId === purchase.id;
