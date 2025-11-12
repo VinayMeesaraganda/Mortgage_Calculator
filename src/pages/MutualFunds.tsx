@@ -43,6 +43,15 @@ const MutualFunds: React.FC = () => {
   const [manualNAV, setManualNAV] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [addingPurchaseToHoldingId, setAddingPurchaseToHoldingId] = useState<string | null>(null);
+  // Inline form state for adding purchase to existing holding
+  const [inlineAddPurchaseHoldingId, setInlineAddPurchaseHoldingId] = useState<string | null>(null);
+  const [inlineInvestmentAmount, setInlineInvestmentAmount] = useState('');
+  const [inlinePurchaseDate, setInlinePurchaseDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [inlineUseManualNAV, setInlineUseManualNAV] = useState(false);
+  const [inlineManualNAV, setInlineManualNAV] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -335,6 +344,93 @@ const MutualFunds: React.FC = () => {
       setHoldings(holdings.filter(h => h.id !== holdingId));
     }
   }, [holdings]);
+
+  // Add purchase inline to existing holding
+  const handleAddPurchaseInline = useCallback(async (holdingId: string) => {
+    const holding = holdings.find(h => h.id === holdingId);
+    if (!holding) return;
+
+    const investmentAmount = parseFloat(inlineInvestmentAmount.replace(/[^0-9.]/g, ''));
+
+    if (isNaN(investmentAmount) || investmentAmount <= 0) {
+      alert('Please enter a valid investment amount');
+      return;
+    }
+
+    // If manual NAV is enabled, validate it
+    if (inlineUseManualNAV) {
+      const manualNavValue = parseFloat(inlineManualNAV.replace(/[^0-9.]/g, ''));
+      if (isNaN(manualNavValue) || manualNavValue <= 0) {
+        alert('Please enter a valid NAV value');
+        return;
+      }
+    }
+
+    setIsLoadingNAV(true);
+    try {
+      let purchaseNAV: number;
+      let currentNAV: number;
+
+      if (inlineUseManualNAV) {
+        // Use manually entered NAV
+        purchaseNAV = parseFloat(inlineManualNAV.replace(/[^0-9.]/g, ''));
+        
+        // Still fetch current NAV for display
+        const currentNavData = await getLatestNAV(holding.schemeCode);
+        currentNAV = currentNavData?.nav || purchaseNAV;
+      } else {
+        // Fetch NAV for the purchase date (historical NAV)
+        const purchaseNavData = await getNAVForDate(holding.schemeCode, inlinePurchaseDate);
+        if (!purchaseNavData) {
+          alert(`Could not fetch NAV for ${inlinePurchaseDate}. Please check the date or use manual NAV entry.`);
+          setIsLoadingNAV(false);
+          return;
+        }
+
+        // Fetch current/latest NAV for display
+        const currentNavData = await getLatestNAV(holding.schemeCode);
+        if (!currentNavData) {
+          alert('Could not fetch current NAV. Please try again.');
+          setIsLoadingNAV(false);
+          return;
+        }
+
+        purchaseNAV = purchaseNavData.nav;
+        currentNAV = currentNavData.nav;
+      }
+
+      const units = investmentAmount / purchaseNAV;
+
+      const newPurchase: MutualFundPurchase = {
+        id: `purchase-${Date.now()}-${Math.random()}`,
+        purchaseDate: inlinePurchaseDate,
+        purchasePrice: purchaseNAV,
+        quantity: units,
+        investmentAmount
+      };
+
+      setHoldings(holdings.map(h => 
+        h.id === holdingId 
+          ? { ...h, currentNAV, purchases: [...h.purchases, newPurchase] }
+          : h
+      ));
+
+      // Reset inline form
+      setInlineAddPurchaseHoldingId(null);
+      setInlineInvestmentAmount('');
+      setInlinePurchaseDate(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      });
+      setInlineUseManualNAV(false);
+      setInlineManualNAV('');
+    } catch (error) {
+      console.error('Error adding purchase:', error);
+      alert('Error adding purchase. Please try again.');
+    } finally {
+      setIsLoadingNAV(false);
+    }
+  }, [holdings, inlineInvestmentAmount, inlinePurchaseDate, inlineUseManualNAV, inlineManualNAV]);
 
   // Delete a purchase from a fund
   const handleDeletePurchase = useCallback((holdingId: string, purchaseId: string) => {
@@ -928,22 +1024,28 @@ const MutualFunds: React.FC = () => {
                         </h4>
                         <button
                           onClick={() => {
-                            setAddingPurchaseToHoldingId(holding.id);
-                            setNewSchemeCode(holding.schemeCode);
-                            setNewSchemeName(holding.schemeName);
-                            setNewInvestmentAmount('');
-                            setNewPurchaseDate(() => {
-                              const now = new Date();
-                              return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                            });
-                            setUseManualNAV(false);
-                            setManualNAV('');
-                            setShowAddForm(true);
+                            if (inlineAddPurchaseHoldingId === holding.id) {
+                              // Close if already open
+                              setInlineAddPurchaseHoldingId(null);
+                              setInlineInvestmentAmount('');
+                              setInlineUseManualNAV(false);
+                              setInlineManualNAV('');
+                            } else {
+                              // Open inline form
+                              setInlineAddPurchaseHoldingId(holding.id);
+                              setInlineInvestmentAmount('');
+                              setInlinePurchaseDate(() => {
+                                const now = new Date();
+                                return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                              });
+                              setInlineUseManualNAV(false);
+                              setInlineManualNAV('');
+                            }
                           }}
                           className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1"
                         >
                           <Plus className="w-3 h-3" />
-                          Add Purchase
+                          {inlineAddPurchaseHoldingId === holding.id ? 'Cancel' : 'Add Purchase'}
                         </button>
                       </div>
                       <div className="space-y-2">
@@ -1054,6 +1156,100 @@ const MutualFunds: React.FC = () => {
                             </div>
                           );
                         })}
+                        
+                        {/* Inline Add Purchase Form */}
+                        {inlineAddPurchaseHoldingId === holding.id && (
+                          <div className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 mt-2">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                              <div>
+                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                  Investment Amount <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={inlineInvestmentAmount}
+                                  onChange={(e) => setInlineInvestmentAmount(e.target.value)}
+                                  placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
+                                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                  Purchase Date <span className="text-red-500">*</span>
+                                </label>
+                                <DatePicker
+                                  value={inlinePurchaseDate}
+                                  onChange={setInlinePurchaseDate}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                  NAV at Purchase <span className="text-red-500">*</span>
+                                </label>
+                                <div className="space-y-1">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={inlineUseManualNAV}
+                                      onChange={(e) => {
+                                        setInlineUseManualNAV(e.target.checked);
+                                        if (!e.target.checked) {
+                                          setInlineManualNAV('');
+                                        }
+                                      }}
+                                      className="w-3 h-3 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
+                                    />
+                                    <span className="text-xs text-slate-600">Enter manually</span>
+                                  </label>
+                                  {inlineUseManualNAV ? (
+                                    <input
+                                      type="text"
+                                      value={inlineManualNAV}
+                                      onChange={(e) => setInlineManualNAV(e.target.value)}
+                                      placeholder="e.g., 45.25"
+                                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                    />
+                                  ) : (
+                                    <div className="px-2 py-1.5 bg-slate-100 rounded text-xs text-slate-500">
+                                      Will fetch from API
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setInlineAddPurchaseHoldingId(null);
+                                  setInlineInvestmentAmount('');
+                                  setInlineUseManualNAV(false);
+                                  setInlineManualNAV('');
+                                }}
+                                className="px-3 py-1.5 text-xs font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded-lg transition-colors flex items-center gap-1"
+                              >
+                                <X className="w-3 h-3" />
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleAddPurchaseInline(holding.id)}
+                                disabled={isLoadingNAV}
+                                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
+                              >
+                                {isLoadingNAV ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Adding...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    Add Purchase
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
