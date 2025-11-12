@@ -146,7 +146,7 @@ const MutualFunds: React.FC = () => {
       } finally {
         setIsSaving(false);
       }
-    }, 1000); // Debounce saves by 1 second
+    }, 10000); // Debounce saves by 10 seconds to reduce sync frequency
 
     return () => clearTimeout(saveTimer);
   }, [holdings, currentUser, isLoadingPortfolio]);
