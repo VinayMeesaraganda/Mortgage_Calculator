@@ -62,6 +62,7 @@ const MutualFunds: React.FC = () => {
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const navRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasRefreshedOnLoadRef = useRef(false);
+  const lastLocalChangeRef = useRef<number>(0); // Track when local changes were made
 
   // Update global currency when selected currency changes
   useEffect(() => {
@@ -101,10 +102,15 @@ const MutualFunds: React.FC = () => {
     // Subscribe to real-time updates
     const unsubscribe = subscribeToMutualFundHoldings(currentUser.uid, (updatedHoldings) => {
       // Only update if this is not the initial load (to avoid overwriting local changes)
-      // Also check if holdings have actually changed to avoid unnecessary updates
+      // Also prevent overwriting if there were recent local changes (within last 12 seconds)
+      // This gives time for local changes to be saved to Firestore
       if (!isInitialLoadRef.current) {
-        setHoldings(updatedHoldings);
-        setIsSynced(true);
+        const timeSinceLastChange = Date.now() - lastLocalChangeRef.current;
+        // Only accept Firestore updates if no recent local changes (12 seconds buffer)
+        if (timeSinceLastChange > 12000) {
+          setHoldings(updatedHoldings);
+          setIsSynced(true);
+        }
       }
     });
 
@@ -302,6 +308,7 @@ const MutualFunds: React.FC = () => {
           currentNAV, // Update to latest NAV
           purchases: [...updatedHoldings[existingHoldingIndex].purchases, newPurchase]
         };
+        lastLocalChangeRef.current = Date.now(); // Track local change
         setHoldings(updatedHoldings);
       } else {
         // Create new fund holding
@@ -319,6 +326,7 @@ const MutualFunds: React.FC = () => {
             investmentAmount
           }]
         };
+        lastLocalChangeRef.current = Date.now(); // Track local change
         setHoldings([...holdings, newHolding]);
       }
 
@@ -341,6 +349,7 @@ const MutualFunds: React.FC = () => {
   // Delete a fund holding
   const handleDeleteHolding = useCallback((holdingId: string) => {
     if (window.confirm('Are you sure you want to delete this mutual fund holding?')) {
+      lastLocalChangeRef.current = Date.now(); // Track local change
       setHoldings(holdings.filter(h => h.id !== holdingId));
     }
   }, [holdings]);
@@ -409,6 +418,7 @@ const MutualFunds: React.FC = () => {
         investmentAmount
       };
 
+      lastLocalChangeRef.current = Date.now(); // Track local change
       setHoldings(holdings.map(h => 
         h.id === holdingId 
           ? { ...h, currentNAV, purchases: [...h.purchases, newPurchase] }
@@ -442,6 +452,7 @@ const MutualFunds: React.FC = () => {
       handleDeleteHolding(holdingId);
     } else {
       // Remove purchase from holding
+      lastLocalChangeRef.current = Date.now(); // Track local change
       setHoldings(holdings.map(h => 
         h.id === holdingId 
           ? { ...h, purchases: h.purchases.filter(p => p.id !== purchaseId) }
@@ -459,6 +470,7 @@ const MutualFunds: React.FC = () => {
     try {
       const navData = await getLatestNAV(holding.schemeCode);
       if (navData) {
+        lastLocalChangeRef.current = Date.now(); // Track local change
         setHoldings(prevHoldings => prevHoldings.map(h => 
           h.id === holdingId ? { ...h, currentNAV: navData.nav } : h
         ));
@@ -593,6 +605,7 @@ const MutualFunds: React.FC = () => {
     purchaseId: string, 
     updates: Partial<MutualFundPurchase>
   ) => {
+    lastLocalChangeRef.current = Date.now(); // Track local change
     setHoldings(holdings.map(h => 
       h.id === holdingId 
         ? {
