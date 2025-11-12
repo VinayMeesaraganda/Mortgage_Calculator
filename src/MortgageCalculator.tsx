@@ -32,6 +32,7 @@ import { AmortizationTable } from './components/AmortizationTable';
 import SEOContent from './components/SEOContent';
 import EmailCaptureModal from './components/EmailCaptureModal';
 import ViralShareResults from './components/ViralShareResults';
+import LoginModal from './components/LoginModal';
 // import Testimonials from './components/Testimonials';
 // import SocialProofBanner from './components/SocialProofBanner';
 import CurrencySelector from './components/CurrencySelector';
@@ -66,6 +67,8 @@ const MortgageCalculator: React.FC = () => {
   const [newMortgageName, setNewMortgageName] = useState('');
   const [editingMortgageName, setEditingMortgageName] = useState<string | null>(null);
   const [editingMortgageNameValue, setEditingMortgageNameValue] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [trackerExpanded, setTrackerExpanded] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isInitialLoadRef = useRef(true);
   const lastLocalChangeRef = useRef<number>(0);
@@ -313,7 +316,7 @@ const MortgageCalculator: React.FC = () => {
   // Save or update current mortgage
   const handleSaveCurrentMortgage = useCallback(() => {
     if (!currentUser) {
-      warning(ERROR_MESSAGES.AUTH_REQUIRED);
+      setShowLoginModal(true);
       return;
     }
 
@@ -1205,6 +1208,12 @@ const MortgageCalculator: React.FC = () => {
 
   return (
     <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
+
       {/* Social Proof Banner */}
       {/* <SocialProofBanner /> */}
       
@@ -1234,15 +1243,35 @@ const MortgageCalculator: React.FC = () => {
         
         {/* Property Type Toggle and Heading */}
         <div className="mb-3 sm:mb-4 animate-slideDown">
-          {/* Back to Home Link */}
-          <div className="flex justify-start mb-3 px-2">
+          {/* Back to Home Link and Auth Buttons */}
+          <div className="flex justify-between items-center mb-3 px-2">
             <Link 
               to="/" 
               className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 transition-colors"
             >
               <ArrowLeft className="w-4 h-4 mr-1" />
-              Back to Home
+              <span className="hidden sm:inline">Back to Home</span>
+              <span className="sm:hidden">Home</span>
             </Link>
+            
+            {!currentUser && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-1 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg"
+                >
+                  <span className="hidden sm:inline">Login</span>
+                  <span className="sm:hidden">Login</span>
+                </button>
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-1 text-xs sm:text-sm font-semibold"
+                >
+                  <span className="hidden sm:inline">Sign Up</span>
+                  <span className="sm:hidden">Sign Up</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Save/Update Mortgage Confirmation Modal */}
@@ -1314,46 +1343,49 @@ const MortgageCalculator: React.FC = () => {
             Free Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
           </h1>
           
-          {/* Toggle and Currency Selector - Toggle Centered, Currency Right (Separate) */}
-          <div className="relative mb-3">
-            {/* Toggle - Centered */}
-          <div className="flex justify-center">
-            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
-              <button
-                onClick={() => setPropertyType('primary')}
-                className={`
-                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                  ${propertyType === 'primary' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                  }
-                `}
-              >
-                <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
-                <span>Primary</span>
-              </button>
-              <button
-                onClick={() => setPropertyType('investment')}
-                className={`
-                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                  ${propertyType === 'investment' 
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                  }
-                `}
-              >
-                <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
-                <span>Investment</span>
-              </button>
+          {/* Toggle and Currency Selector */}
+          <div className="mb-3">
+            {/* Toggle and Currency - Responsive Layout */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2">
+              {/* Toggle - Centered on mobile, left on desktop */}
+              <div className="flex justify-center sm:justify-start flex-1">
+                <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+                  <button
+                    onClick={() => setPropertyType('primary')}
+                    className={`
+                      flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                      ${propertyType === 'primary' 
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                      }
+                    `}
+                  >
+                    <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
+                    <span>Primary</span>
+                  </button>
+                  <button
+                    onClick={() => setPropertyType('investment')}
+                    className={`
+                      flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                      ${propertyType === 'investment' 
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                      }
+                    `}
+                  >
+                    <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
+                    <span>Investment</span>
+                  </button>
+                </div>
               </div>
-            </div>
-            
-            {/* Currency Selector - Right Aligned (Absolute positioned) */}
-            <div className="absolute top-0 right-0 flex items-center">
-              <CurrencySelector 
-                selectedCurrency={selectedCurrency}
-                onCurrencyChange={setSelectedCurrency}
-              />
+              
+              {/* Currency Selector - Below toggle on mobile, right side on desktop */}
+              <div className="flex justify-center sm:justify-end">
+                <CurrencySelector 
+                  selectedCurrency={selectedCurrency}
+                  onCurrencyChange={setSelectedCurrency}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -2655,12 +2687,26 @@ const MortgageCalculator: React.FC = () => {
                 {currentUser && savedMortgages.length > 0 && (
                   <div id="mortgage-tracker" className="mt-6 mb-6">
                     <div className="bg-white rounded-xl shadow-xl border-2 border-blue-100 p-6">
-                      <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Home className="w-6 h-6 text-blue-600" />
-                        Mortgage Tracker
-                      </h2>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                          <Home className="w-6 h-6 text-blue-600" />
+                          Mortgage Tracker
+                          <span className="text-sm font-normal text-slate-600">
+                            ({savedMortgages.length} {savedMortgages.length === 1 ? 'mortgage' : 'mortgages'})
+                          </span>
+                        </h2>
+                        {savedMortgages.length > 1 && (
+                          <button
+                            onClick={() => setTrackerExpanded(!trackerExpanded)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            {trackerExpanded ? 'Show Less' : 'Show All'}
+                            <ChevronDown className={`w-4 h-4 transition-transform ${trackerExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        )}
+                      </div>
                       
-                      {savedMortgages.map((mortgage) => {
+                      {savedMortgages.slice(0, trackerExpanded ? savedMortgages.length : 1).map((mortgage) => {
                         // Calculate current mortgage metrics
                         const mortgageLoanAmount = mortgage.homeValue - mortgage.downPayment;
                         const isCurrentMortgage = selectedMortgageId === mortgage.id;

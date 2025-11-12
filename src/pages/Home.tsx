@@ -1,16 +1,16 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, TrendingUp, PieChart, Shield, Banknote, LogOut, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Calculator, TrendingUp, PieChart, Shield, Banknote, LogOut, User, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import LoginModal from '../components/LoginModal';
 
 const Home: React.FC = () => {
   const { currentUser, logout, userProfile } = useAuth();
-  const navigate = useNavigate();
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
     } catch (error) {
       console.error('Error logging out:', error);
     }
@@ -76,6 +76,12 @@ const Home: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
+
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -84,10 +90,10 @@ const Home: React.FC = () => {
             <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 tracking-tight text-center flex-1">
               Personal Finance
             </h1>
-            <div className="flex-1 flex justify-end items-center gap-3">
-              {currentUser && (
+            <div className="flex-1 flex justify-end items-center gap-2">
+              {currentUser ? (
                 <>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600">
                     <User className="w-4 h-4" />
                     <span className="font-semibold">{userProfile?.username || currentUser.displayName || 'User'}</span>
                   </div>
@@ -96,7 +102,24 @@ const Home: React.FC = () => {
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
                   >
                     <LogOut className="w-4 h-4" />
-                    Logout
+                    <span className="hidden sm:inline">Logout</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span className="hidden sm:inline">Login</span>
+                  </button>
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Sign Up</span>
                   </button>
                 </>
               )}
@@ -118,7 +141,17 @@ const Home: React.FC = () => {
           <p className="text-slate-600 max-w-2xl mx-auto">
             Access powerful financial tools and calculators to make informed decisions about mortgages, 
             investments, insurance, and savings. Track your portfolio, calculate returns, and plan your financial future. 
-            All tools are free to use with no signup required.
+            All tools are <span className="font-semibold text-blue-600">free to use</span> with no signup required.
+            {!currentUser && (
+              <span className="block mt-2 text-sm">
+                <button 
+                  onClick={() => setShowLoginModal(true)}
+                  className="text-blue-600 hover:text-blue-700 font-semibold underline"
+                >
+                  Sign up
+                </button> to save and track your financial data across devices.
+              </span>
+            )}
           </p>
         </div>
 

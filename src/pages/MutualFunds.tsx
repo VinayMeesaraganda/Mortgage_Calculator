@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { PieChart, ArrowLeft, Plus, Edit2, Trash2, X, Check, Search, Loader2, AlertCircle, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { PieChart, ArrowLeft, Plus, Edit2, Trash2, X, Check, Search, Loader2, AlertCircle, Cloud, CloudOff, RefreshCw, ChevronDown } from 'lucide-react';
 import type { MutualFundHolding, MutualFundPurchase, MutualFundHoldingSummary } from '../types/mutualFund';
 import type { Currency } from '../types/mortgage';
 import { formatCurrency, setGlobalCurrency } from '../utils/formatting';
@@ -24,6 +24,13 @@ const MutualFunds: React.FC = () => {
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('INR'); // Default to INR for Indian mutual funds
   const [holdings, setHoldings] = useState<MutualFundHolding[]>([]);
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
+  const [expandedPurchases, setExpandedPurchases] = useState<Set<string>>(new Set());
+  
+  // SIP Calculator state
+  const [sipType, setSipType] = useState<'sip' | 'lumpsum'>('sip');
+  const [sipAmount, setSipAmount] = useState('10000');
+  const [sipYears, setSipYears] = useState('10');
+  const [sipReturns, setSipReturns] = useState('12');
   
   // Firestore sync state
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
@@ -180,6 +187,39 @@ const MutualFunds: React.FC = () => {
       };
     });
   }, [holdings]);
+
+  // SIP/Lumpsum Calculator
+  const sipCalculation = useMemo(() => {
+    const amount = parseFloat(sipAmount) || 0;
+    const years = parseFloat(sipYears) || 0;
+    const returns = parseFloat(sipReturns) || 0;
+    const monthlyRate = returns / 100 / 12;
+    const months = years * 12;
+    
+    if (sipType === 'sip') {
+      // SIP Calculation: FV = P × [(1 + r)^n - 1] / r × (1 + r)
+      const futureValue = amount * (Math.pow(1 + monthlyRate, months) - 1) / monthlyRate * (1 + monthlyRate);
+      const totalInvested = amount * months;
+      const estimatedReturns = futureValue - totalInvested;
+      
+      return {
+        totalInvested,
+        estimatedReturns,
+        futureValue
+      };
+    } else {
+      // Lumpsum Calculation: FV = P × (1 + r)^n
+      const futureValue = amount * Math.pow(1 + monthlyRate, months);
+      const totalInvested = amount;
+      const estimatedReturns = futureValue - totalInvested;
+      
+      return {
+        totalInvested,
+        estimatedReturns,
+        futureValue
+      };
+    }
+  }, [sipType, sipAmount, sipYears, sipReturns]);
 
   // Calculate portfolio totals
   const portfolioTotals = useMemo(() => {
@@ -362,7 +402,7 @@ const MutualFunds: React.FC = () => {
     if (!holding) return;
 
     const investmentAmount = parseFloat(inlineInvestmentAmount.replace(/[^0-9.]/g, ''));
-    
+
     if (isNaN(investmentAmount) || investmentAmount <= 0) {
       warning('Please enter a valid investment amount');
       return;
@@ -651,6 +691,118 @@ const MutualFunds: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* SIP/Lumpsum Calculator */}
+        <div className={CARD_STYLE} style={CARD_SHADOW}>
+          <div className="p-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Mutual Fund Calculator
+            </h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Input Section */}
+              <div className="space-y-4">
+                {/* SIP/Lumpsum Toggle */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSipType('sip')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-300 ${
+                      sipType === 'sip'
+                        ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    SIP (Monthly)
+                  </button>
+                  <button
+                    onClick={() => setSipType('lumpsum')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-300 ${
+                      sipType === 'lumpsum'
+                        ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    One-Time (Lumpsum)
+                  </button>
+                </div>
+                
+                {/* Amount Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    {sipType === 'sip' ? 'Monthly Investment Amount' : 'Investment Amount'}
+                  </label>
+                  <input
+                    type="text"
+                    value={sipAmount}
+                    onChange={(e) => setSipAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder={CURRENCY_DATA[selectedCurrency].symbol + '10,000'}
+                    className={INPUT_STYLE}
+                  />
+                </div>
+                
+                {/* Expected Returns Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Expected Annual Returns (%)
+                  </label>
+                  <input
+                    type="text"
+                    value={sipReturns}
+                    onChange={(e) => setSipReturns(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="12%"
+                    className={INPUT_STYLE}
+                  />
+                </div>
+                
+                {/* Time Period Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Time Period (Years)
+                  </label>
+                  <input
+                    type="text"
+                    value={sipYears}
+                    onChange={(e) => setSipYears(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="10"
+                    className={INPUT_STYLE}
+                  />
+                </div>
+              </div>
+              
+              {/* Results Section */}
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border-2 border-purple-200">
+                <h3 className="text-md font-bold text-slate-800 mb-4">Investment Summary</h3>
+                <div className="space-y-4">
+                  <div className="bg-white rounded-lg p-4 border border-purple-100">
+                    <div className="text-sm text-slate-600 mb-1">
+                      {sipType === 'sip' ? 'Total Investment' : 'Investment Amount'}
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatCurrency(sipCalculation.totalInvested)}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 border border-purple-100">
+                    <div className="text-sm text-slate-600 mb-1">Estimated Returns</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(sipCalculation.estimatedReturns)}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-600 to-violet-600 rounded-lg p-4 text-white shadow-lg">
+                    <div className="text-sm opacity-90 mb-1">Future Value</div>
+                    <div className="text-3xl font-bold">
+                      {formatCurrency(sipCalculation.futureValue)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Loading State */}
         {isLoadingPortfolio && (
           <div className="flex items-center justify-center py-12">
@@ -1034,10 +1186,29 @@ const MutualFunds: React.FC = () => {
                     {/* Purchases List */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          Purchases ({holding.purchases.length})
-                          <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
-                        </h4>
+                        <div className="flex items-center gap-3">
+                          <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            Purchases ({holding.purchases.length})
+                            <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
+                          </h4>
+                          {holding.purchases.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const newExpanded = new Set(expandedPurchases);
+                                if (newExpanded.has(holding.id)) {
+                                  newExpanded.delete(holding.id);
+                                } else {
+                                  newExpanded.add(holding.id);
+                                }
+                                setExpandedPurchases(newExpanded);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 px-2 py-1 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              {expandedPurchases.has(holding.id) ? 'Hide' : 'Show'}
+                              <ChevronDown className={`w-3 h-3 transition-transform ${expandedPurchases.has(holding.id) ? 'rotate-180' : ''}`} />
+                            </button>
+                          )}
+                        </div>
                         <button
                           onClick={() => {
                             if (inlineAddPurchaseHoldingId === holding.id) {
@@ -1064,8 +1235,9 @@ const MutualFunds: React.FC = () => {
                           {inlineAddPurchaseHoldingId === holding.id ? 'Cancel' : 'Add Purchase'}
                         </button>
                       </div>
-                      <div className="space-y-2">
-                        {holding.purchases.map((purchase) => {
+                      {expandedPurchases.has(holding.id) && (
+                        <div className="space-y-2">
+                          {holding.purchases.map((purchase) => {
                           const isEditingPurchase = editingPurchaseId === purchase.id;
                           const purchaseValue = purchase.investmentAmount;
                           const currentValue = holding.currentNAV * purchase.quantity;
@@ -1266,7 +1438,8 @@ const MutualFunds: React.FC = () => {
                             </div>
                           </div>
                         )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
