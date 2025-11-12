@@ -1329,7 +1329,7 @@ const MutualFunds: React.FC = () => {
                 {portfolioTotals.cagr >= 0 ? '+' : ''}{portfolioTotals.cagr.toFixed(2)}%
               </p>
               <p className="text-xs text-slate-500 mt-1">Compound Annual Growth Rate</p>
-            </div>
+              </div>
             <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-5 border-2 border-indigo-200 shadow-lg">
               <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
                 <span className="text-indigo-600">📈</span>
@@ -1337,9 +1337,9 @@ const MutualFunds: React.FC = () => {
               </h3>
               <p className={`text-3xl font-bold ${portfolioTotals.xirr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {portfolioTotals.xirr >= 0 ? '+' : ''}{portfolioTotals.xirr.toFixed(2)}%
-              </p>
+                  </p>
               <p className="text-xs text-slate-500 mt-1">Extended Internal Rate of Return</p>
-            </div>
+                </div>
               </div>
         )}
 

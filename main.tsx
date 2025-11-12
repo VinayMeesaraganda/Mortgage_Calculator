@@ -10,6 +10,7 @@ import StockInvestments from './src/pages/StockInvestments';
 import MutualFunds from './src/pages/MutualFunds';
 import Insurance from './src/pages/Insurance';
 import FixedDeposits from './src/pages/FixedDeposits';
+import ProtectedRoute from './src/components/ProtectedRoute';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -19,13 +20,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-              {/* All Routes are now public */}
+              {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/mortgage-calculator" element={<MortgageCalculator />} />
-              <Route path="/stock-investments" element={<StockInvestments />} />
               <Route path="/mutual-funds" element={<MutualFunds />} />
               <Route path="/insurance" element={<Insurance />} />
               <Route path="/fixed-deposits" element={<FixedDeposits />} />
+              
+              {/* Protected Routes - Login Required */}
+              <Route path="/stock-investments" element={
+                <ProtectedRoute>
+                  <StockInvestments />
+                </ProtectedRoute>
+              } />
           
           {/* Redirect unknown routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

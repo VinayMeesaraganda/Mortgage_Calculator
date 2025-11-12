@@ -29,17 +29,6 @@ const Home: React.FC = () => {
       available: true
     },
     {
-      id: 'stock',
-      title: 'Stock Investments',
-      description: 'Track your stock portfolio, calculate returns, and analyze investment performance.',
-      icon: TrendingUp,
-      path: '/stock-investments',
-      color: 'from-green-500 to-emerald-600',
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
-      available: true
-    },
-    {
       id: 'mutual-funds',
       title: 'Mutual Funds',
       description: 'Track your mutual fund portfolio, calculate returns, and analyze performance by category.',
@@ -49,6 +38,18 @@ const Home: React.FC = () => {
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
       available: true
+    },
+    {
+      id: 'stock',
+      title: 'Stock Investments',
+      description: 'Track your stock portfolio, calculate returns, and analyze investment performance.',
+      icon: TrendingUp,
+      path: '/stock-investments',
+      color: 'from-green-500 to-emerald-600',
+      bgColor: 'bg-green-50',
+      borderColor: 'border-green-200',
+      available: false, // Show as "Coming Soon" but allow logged-in users to access
+      requiresLogin: true
     },
     {
       id: 'insurance',
@@ -112,14 +113,14 @@ const Home: React.FC = () => {
                     className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
                   >
                     <LogIn className="w-4 h-4" />
-                    <span className="hidden sm:inline">Login</span>
+                    <span>Login</span>
                   </button>
                   <button
                     onClick={() => setShowLoginModal(true)}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
                   >
                     <UserPlus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Sign Up</span>
+                    <span>Sign Up</span>
                   </button>
                 </>
               )}
@@ -159,9 +160,12 @@ const Home: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {tools.map((tool) => {
             const Icon = tool.icon;
+            // Determine if tool is accessible (available or requires login and user is logged in)
+            const isAccessible = tool.available || (tool.requiresLogin && currentUser);
+            
             const cardContent = (
               <div className={`${tool.bgColor} rounded-xl border-2 ${tool.borderColor} p-6 h-full transition-all duration-300 hover:shadow-xl hover:scale-105 ${
-                tool.available ? 'hover:border-opacity-60 cursor-pointer' : 'cursor-not-allowed opacity-75'
+                isAccessible ? 'hover:border-opacity-60 cursor-pointer' : 'cursor-not-allowed opacity-75'
               }`}>
                 <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${tool.color} flex items-center justify-center mb-4 shadow-lg`}>
                   <Icon className="w-6 h-6 text-white" />
@@ -177,7 +181,7 @@ const Home: React.FC = () => {
                 <p className="text-slate-600 text-sm leading-relaxed">
                   {tool.description}
                 </p>
-                {tool.available && (
+                {isAccessible && (
                   <div className="mt-4 flex items-center text-sm font-semibold text-blue-600">
                     <span>Try it now</span>
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,12 +192,25 @@ const Home: React.FC = () => {
               </div>
             );
 
-            return tool.available ? (
-              <Link key={tool.id} to={tool.path} className="block">
+            // Handle click for tools that require login
+            const handleToolClick = (e: React.MouseEvent) => {
+              if (!tool.available && tool.requiresLogin) {
+                if (!currentUser) {
+                  e.preventDefault();
+                  setShowLoginModal(true);
+                } else {
+                  // Allow logged-in users to access even if marked as "Coming Soon"
+                  // The route is protected, so they can navigate
+                }
+              }
+            };
+
+            return isAccessible ? (
+              <Link key={tool.id} to={tool.path} className="block" onClick={handleToolClick}>
                 {cardContent}
               </Link>
             ) : (
-              <div key={tool.id} className="block">
+              <div key={tool.id} className="block" onClick={handleToolClick}>
                 {cardContent}
               </div>
             );
