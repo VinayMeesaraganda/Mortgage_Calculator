@@ -16,29 +16,74 @@ import { getAnalytics } from 'firebase/analytics';
 
 function getEnvVar(name: string): string {
   const value = import.meta.env[name];
-  if (!value) {
+  if (!value || value.trim() === '') {
+    // Debug: Log what we're getting
+    console.error(`Environment variable ${name} is missing or empty`);
+    console.error('Available env vars:', Object.keys(import.meta.env).filter(k => k.startsWith('VITE_FIREBASE')));
     throw new Error(
       `Missing required environment variable: ${name}\n` +
       `Please set this in:\n` +
       `- Vercel: Settings → Environment Variables\n` +
-      `- Local: Create a .env file with ${name}=your-value`
+      `- Local: Create a .env.local file with ${name}=your-value\n` +
+      `Note: Restart dev server after creating .env.local`
     );
   }
-  return value;
+  return value.trim();
+}
+
+// Get all environment variables
+const apiKey = getEnvVar('VITE_FIREBASE_API_KEY');
+const authDomain = getEnvVar('VITE_FIREBASE_AUTH_DOMAIN');
+const projectId = getEnvVar('VITE_FIREBASE_PROJECT_ID');
+const storageBucket = getEnvVar('VITE_FIREBASE_STORAGE_BUCKET');
+const messagingSenderId = getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID');
+const appId = getEnvVar('VITE_FIREBASE_APP_ID');
+const measurementId = getEnvVar('VITE_FIREBASE_MEASUREMENT_ID');
+
+// Validate API key format (should start with AIza)
+if (!apiKey.startsWith('AIza')) {
+  console.error('Invalid API key format. Firebase API keys should start with "AIza"');
+  throw new Error('Invalid Firebase API key format. Please check your VITE_FIREBASE_API_KEY environment variable.');
 }
 
 const firebaseConfig = {
-  apiKey: getEnvVar('VITE_FIREBASE_API_KEY'),
-  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN'),
-  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID'),
-  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID'),
-  appId: getEnvVar('VITE_FIREBASE_APP_ID'),
-  measurementId: getEnvVar('VITE_FIREBASE_MEASUREMENT_ID')
+  apiKey,
+  authDomain,
+  projectId,
+  storageBucket,
+  messagingSenderId,
+  appId,
+  measurementId
 };
 
+// Debug: Log config (without sensitive data) - works in both dev and production
+console.log('Firebase Config Status:', {
+  apiKey: apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING',
+  authDomain: authDomain || 'MISSING',
+  projectId: projectId || 'MISSING',
+  hasApiKey: !!apiKey,
+  apiKeyLength: apiKey?.length || 0,
+  apiKeyValid: apiKey?.startsWith('AIza') || false,
+  environment: import.meta.env.MODE,
+  isProduction: import.meta.env.PROD
+});
+
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+} catch (error: any) {
+  console.error('Firebase initialization error:', error);
+  console.error('Firebase config used:', {
+    apiKey: apiKey.substring(0, 10) + '...',
+    authDomain,
+    projectId
+  });
+  throw new Error(
+    `Failed to initialize Firebase: ${error.message}\n` +
+    `Please verify your environment variables are set correctly.`
+  );
+}
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
