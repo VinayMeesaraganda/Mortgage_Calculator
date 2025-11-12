@@ -72,3 +72,23 @@ export interface ARMDetails {
   margin: number;
 }
 
+// Saved Mortgage for tracking
+export interface SavedMortgage {
+  id: string;
+  name: string; // User-friendly name for the mortgage
+  homeValue: number;
+  downPayment: number;
+  interestRate: number;
+  tenure: number; // in years
+  startDate: string; // YYYY-MM-DD format
+  paymentType: PaymentType;
+  extraPaymentEnabled: boolean;
+  extraPaymentAmount: number;
+  extraPaymentStartDate: string; // YYYY-MM-DD format
+  extraPaymentFrequency: ExtraPaymentFrequency;
+  oneTimePayments: OneTimePayment[];
+  currency: Currency;
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+}
+

@@ -1,9 +1,9 @@
 // Main Mortgage Calculator Component - Modularized Version
 // This file demonstrates the clean architecture using separated modules
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ArrowLeft, Trash2, Edit2, X, Check, Home } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 
 // Import types
-import type { OneTimePayment, PaymentType, Currency } from './types/mortgage';
+import type { OneTimePayment, PaymentType, Currency, SavedMortgage } from './types/mortgage';
 
 // Import utilities
 import { formatCurrency, formatCurrencyCompact, formatDate, formatYearsMonths, setGlobalCurrency } from './utils/formatting';
@@ -40,8 +40,37 @@ import ExportDropdown from './components/ExportDropdown';
 
 // Import constants
 import { INPUT_STYLE, CARD_STYLE, CARD_SHADOW } from './constants/styles';
+import { ERROR_MESSAGES, DEBOUNCE_DELAYS, FIRESTORE_SYNC } from './utils/constants';
+
+// Import auth and services
+import { useAuth } from './contexts/AuthContext';
+import { useToast } from './components/Toast';
+import { logger } from './utils/logger';
+import { 
+  saveMortgages, 
+  loadMortgages, 
+  subscribeToMortgages 
+} from './services/mortgageService';
 
 const MortgageCalculator: React.FC = () => {
+  const { currentUser } = useAuth();
+  const { success, error: showError, warning } = useToast();
+  
+  // Mortgage tracking state
+  const [savedMortgages, setSavedMortgages] = useState<SavedMortgage[]>([]);
+  const [selectedMortgageId, setSelectedMortgageId] = useState<string | null>(null);
+  const [isLoadingMortgages, setIsLoadingMortgages] = useState(false);
+  const [isSavingMortgage, setIsSavingMortgage] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showSaveMortgageModal, setShowSaveMortgageModal] = useState(false);
+  const [newMortgageName, setNewMortgageName] = useState('');
+  const [editingMortgageName, setEditingMortgageName] = useState<string | null>(null);
+  const [editingMortgageNameValue, setEditingMortgageNameValue] = useState('');
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const lastLocalChangeRef = useRef<number>(0);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Use custom hooks for number inputs - eliminates ~150 lines of repetitive code
   const homeValueInput = useNumberInput(400000, 400000, 'homeValue');
   const downPaymentInput = useNumberInput(80000, 80000, 'downPayment', (val) => Math.min(val, homeValueInput.value));
@@ -191,13 +220,273 @@ const MortgageCalculator: React.FC = () => {
   useEffect(() => {
     if (!hasCalculated && schedule.length > 0) {
       setHasCalculated(true);
-      // Show email capture modal after 3 seconds (after user sees results)
+      // Show email capture modal after user sees results
       const timer = setTimeout(() => {
         setShowEmailCapture(true);
-      }, 3000);
+      }, DEBOUNCE_DELAYS.EMAIL_CAPTURE);
       return () => clearTimeout(timer);
     }
   }, [hasCalculated, schedule.length]);
+
+  // Load mortgages from Firestore on mount
+  useEffect(() => {
+    if (!currentUser) {
+      setSavedMortgages([]);
+      return;
+    }
+
+    const loadMortgagesData = async () => {
+      setIsLoadingMortgages(true);
+      try {
+        const mortgages = await loadMortgages(currentUser.uid);
+        setSavedMortgages(mortgages);
+        isInitialLoadRef.current = false;
+      } catch (error) {
+        const err = error as Error;
+        logger.error('Error loading mortgages', error);
+        // Show the specific error message from the service, or fallback to generic
+        showError(err.message || ERROR_MESSAGES.LOAD_MORTGAGE_FAILED);
+      } finally {
+        setIsLoadingMortgages(false);
+      }
+    };
+
+    loadMortgagesData();
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToMortgages(currentUser.uid, (updatedMortgages) => {
+      if (!isInitialLoadRef.current) {
+        const timeSinceLastChange = Date.now() - lastLocalChangeRef.current;
+        // Only accept Firestore updates if no recent local changes
+        if (timeSinceLastChange > FIRESTORE_SYNC.LOCAL_CHANGE_BUFFER_MS) {
+          setSavedMortgages(updatedMortgages);
+        }
+      }
+    });
+
+    unsubscribeRef.current = unsubscribe;
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [currentUser]);
+
+  // Save mortgages to Firestore when they change (debounced)
+  useEffect(() => {
+    if (!currentUser || isLoadingMortgages || isInitialLoadRef.current) {
+      return;
+    }
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    const saveTimer = setTimeout(async () => {
+      try {
+        setIsSavingMortgage(true);
+        setSaveError(null);
+        await saveMortgages(currentUser.uid, savedMortgages);
+        logger.info('Mortgages saved successfully to Firestore');
+      } catch (error) {
+        const err = error as Error;
+        logger.error('Error saving mortgages', error);
+        // Show the specific error message from the service
+        const errorMessage = err.message || ERROR_MESSAGES.SAVE_MORTGAGE_FAILED;
+        setSaveError(errorMessage);
+        showError(errorMessage);
+      } finally {
+        setIsSavingMortgage(false);
+      }
+    }, DEBOUNCE_DELAYS.FIRESTORE_SAVE);
+
+    saveTimerRef.current = saveTimer;
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [savedMortgages, currentUser, isLoadingMortgages]);
+
+  // Save or update current mortgage
+  const handleSaveCurrentMortgage = useCallback(() => {
+    if (!currentUser) {
+      warning(ERROR_MESSAGES.AUTH_REQUIRED);
+      return;
+    }
+
+    if (!newMortgageName.trim()) {
+      warning(ERROR_MESSAGES.INVALID_MORTGAGE_NAME);
+      return;
+    }
+
+    const trimmedName = newMortgageName.trim();
+
+    // Check for duplicate name (excluding the current mortgage if updating)
+    const existingMortgageWithSameName = savedMortgages.find(
+      m => m.name.toLowerCase() === trimmedName.toLowerCase() && m.id !== selectedMortgageId
+    );
+
+    if (existingMortgageWithSameName) {
+      warning(ERROR_MESSAGES.DUPLICATE_MORTGAGE_NAME);
+      return;
+    }
+
+    if (selectedMortgageId) {
+      // Update existing mortgage
+      lastLocalChangeRef.current = Date.now();
+      setSavedMortgages(prev => prev.map(m => 
+        m.id === selectedMortgageId ? {
+          ...m,
+          name: trimmedName,
+          homeValue: homeValueInput.value,
+          downPayment: downPaymentInput.value,
+          interestRate: interestRateInput.value,
+          tenure: tenureInput.value,
+          startDate,
+          paymentType,
+          extraPaymentEnabled,
+          extraPaymentAmount: extraPaymentAmountInput.value,
+          extraPaymentStartDate,
+          extraPaymentFrequency: extraPaymentFrequency as 'monthly' | 'biweekly',
+          oneTimePayments: [...oneTimePayments],
+          currency: selectedCurrency,
+          updatedAt: new Date().toISOString()
+        } : m
+      ));
+    } else {
+      // Create new mortgage
+      const newMortgage: SavedMortgage = {
+        id: `mortgage-${Date.now()}-${Math.random()}`,
+        name: trimmedName,
+        homeValue: homeValueInput.value,
+        downPayment: downPaymentInput.value,
+        interestRate: interestRateInput.value,
+        tenure: tenureInput.value,
+        startDate,
+        paymentType,
+        extraPaymentEnabled,
+        extraPaymentAmount: extraPaymentAmountInput.value,
+        extraPaymentStartDate,
+        extraPaymentFrequency: extraPaymentFrequency as 'monthly' | 'biweekly',
+        oneTimePayments: [...oneTimePayments],
+        currency: selectedCurrency,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      lastLocalChangeRef.current = Date.now();
+      setSavedMortgages(prev => [...prev, newMortgage]);
+      setSelectedMortgageId(newMortgage.id);
+    }
+
+    setNewMortgageName('');
+    setShowSaveMortgageModal(false);
+    
+    // Scroll to mortgage tracker after a short delay
+    setTimeout(() => {
+      const trackerElement = document.getElementById('mortgage-tracker');
+      if (trackerElement) {
+        trackerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 300);
+  }, [currentUser, newMortgageName, savedMortgages, selectedMortgageId, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency]);
+
+  // Load a saved mortgage
+  const handleLoadMortgage = useCallback((mortgage: SavedMortgage) => {
+    homeValueInput.setValue(mortgage.homeValue);
+    downPaymentInput.setValue(mortgage.downPayment);
+    interestRateInput.setValue(mortgage.interestRate);
+    tenureInput.setValue(mortgage.tenure);
+    setStartDate(mortgage.startDate);
+    setPaymentType(mortgage.paymentType);
+    setExtraPaymentEnabled(mortgage.extraPaymentEnabled);
+    extraPaymentAmountInput.setValue(mortgage.extraPaymentAmount);
+    setExtraPaymentStartDate(mortgage.extraPaymentStartDate);
+    setExtraPaymentFrequency(mortgage.extraPaymentFrequency);
+    setOneTimePayments([...mortgage.oneTimePayments]);
+    setSelectedCurrency(mortgage.currency);
+    setSelectedMortgageId(mortgage.id);
+    setNewMortgageName(mortgage.name); // Pre-fill the name for updating
+  }, [
+    homeValueInput,
+    downPaymentInput,
+    interestRateInput,
+    tenureInput,
+    extraPaymentAmountInput,
+    setStartDate,
+    setPaymentType,
+    setExtraPaymentEnabled,
+    setExtraPaymentStartDate,
+    setExtraPaymentFrequency,
+    setOneTimePayments,
+    setSelectedCurrency,
+    setSelectedMortgageId,
+    setNewMortgageName
+  ]);
+
+  // Delete a mortgage
+  const handleDeleteMortgage = useCallback((mortgageId: string) => {
+    if (window.confirm('Are you sure you want to delete this mortgage?')) {
+      lastLocalChangeRef.current = Date.now();
+      setSavedMortgages(prev => prev.filter(m => m.id !== mortgageId));
+      if (selectedMortgageId === mortgageId) {
+        setSelectedMortgageId(null);
+      }
+    }
+  }, [selectedMortgageId, setSavedMortgages, setSelectedMortgageId]);
+
+  // Update mortgage name
+  const handleUpdateMortgageName = useCallback((mortgageId: string, newName: string) => {
+    if (!newName.trim()) {
+      warning(ERROR_MESSAGES.EMPTY_MORTGAGE_NAME);
+      return;
+    }
+    lastLocalChangeRef.current = Date.now();
+    setSavedMortgages(prev => prev.map(m => 
+      m.id === mortgageId ? { ...m, name: newName.trim(), updatedAt: new Date().toISOString() } : m
+    ));
+    setEditingMortgageName(null);
+    setEditingMortgageNameValue('');
+  }, [warning, setSavedMortgages, setEditingMortgageName, setEditingMortgageNameValue]);
+
+  // Update current mortgage data
+  const handleUpdateCurrentMortgage = useCallback(() => {
+    if (!selectedMortgageId || !currentUser) return;
+
+    lastLocalChangeRef.current = Date.now();
+    setSavedMortgages(prev => prev.map(m => 
+      m.id === selectedMortgageId ? {
+        ...m,
+        homeValue: homeValueInput.value,
+        downPayment: downPaymentInput.value,
+        interestRate: interestRateInput.value,
+        tenure: tenureInput.value,
+        startDate,
+        paymentType,
+        extraPaymentEnabled,
+        extraPaymentAmount: extraPaymentAmountInput.value,
+        extraPaymentStartDate,
+        extraPaymentFrequency: extraPaymentFrequency as 'monthly' | 'biweekly',
+        oneTimePayments: [...oneTimePayments],
+        currency: selectedCurrency,
+        updatedAt: new Date().toISOString()
+      } : m
+    ));
+  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency]);
+
+  // Auto-update selected mortgage when form values change (debounced)
+  useEffect(() => {
+    if (selectedMortgageId && currentUser) {
+      const updateTimer = setTimeout(() => {
+        handleUpdateCurrentMortgage();
+      }, DEBOUNCE_DELAYS.MORTGAGE_UPDATE);
+      
+      return () => clearTimeout(updateTimer);
+    }
+  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments.length, selectedCurrency, handleUpdateCurrentMortgage]);
   
   // Calculate monthly additional costs (moved here after loanAmount is available)
   const monthlyPropertyTax = propertyTaxPeriod === 'year' ? propertyTax / 12 : propertyTax;
@@ -402,24 +691,258 @@ const MortgageCalculator: React.FC = () => {
   // Memoize refinance calculation result
   const refinanceCalc = useMemo(() => calculateRefinance(), [calculateRefinance]);
   
-  // Calculate savings based on comparison mode
+  // Calculate outstanding balance as of today
+  const getCurrentOutstandingBalance = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDateObj = new Date(startDate);
+    startDateObj.setHours(0, 0, 0, 0);
+    
+    // If mortgage hasn't started yet, return original loan amount
+    if (today < startDateObj) {
+      return loanAmount;
+    }
+    
+    // Find the outstanding balance as of today from the schedule
+    let currentBalance = loanAmount;
+    for (const payment of schedule) {
+      const paymentDate = new Date(payment.date);
+      paymentDate.setHours(0, 0, 0, 0);
+      
+      if (paymentDate <= today) {
+        currentBalance = payment.balance;
+      } else {
+        break;
+      }
+    }
+    
+    return currentBalance;
+  }, [schedule, loanAmount, startDate]);
+
+  // Calculate how long it takes to pay off remaining balance with fixed payment
+  const calculatePayoffWithFixedPayment = useCallback((
+    principal: number,
+    annualRate: number,
+    fixedMonthlyPayment: number,
+    startDateStr: string,
+    isMonthly: boolean
+  ) => {
+    const monthlyRate = annualRate / 12;
+    const dailyRate = annualRate / 365;
+    
+    let balance = principal;
+    const schedule: any[] = [];
+    let totalInterestPaid = 0;
+    let totalPaid = 0;
+    
+    const [startYear, startMonth] = startDateStr.split('-').map(Number);
+    let currentDate = new Date(startYear, startMonth - 1, 1);
+    let paymentNum = 1;
+    const maxPayments = isMonthly ? 600 : 1300; // Safety limit
+    
+    if (isMonthly) {
+      // Monthly payments
+      while (balance > 0.01 && paymentNum <= maxPayments) {
+        const interestPayment = balance * monthlyRate;
+        let principalPayment = fixedMonthlyPayment - interestPayment;
+        
+        if (balance - principalPayment < 0.01) {
+          principalPayment = balance;
+          balance = 0;
+        } else {
+          balance -= principalPayment;
+        }
+        
+        totalInterestPaid += interestPayment;
+        const totalPayment = interestPayment + principalPayment;
+        totalPaid += totalPayment;
+        
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        
+        schedule.push({
+          paymentNum,
+          date: `${year}-${month}`,
+          payment: totalPayment,
+          principal: principalPayment,
+          interest: interestPayment,
+          balance: Math.max(0, balance),
+          totalInterest: totalInterestPaid
+        });
+        
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        paymentNum++;
+        
+        if (balance < 0.01) break;
+      }
+      
+      const yearsToPayoff = schedule.length / 12;
+      const endDate = schedule.length > 0 ? schedule[schedule.length - 1].date : startDateStr;
+      
+      return {
+        loanAmount: principal,
+        paymentAmount: fixedMonthlyPayment,
+        totalPayments: schedule.length,
+        totalPaid,
+        totalInterest: totalInterestPaid,
+        endDate,
+        schedule,
+        yearsToPayoff
+      };
+    } else {
+      // Biweekly payments (half of monthly payment every 2 weeks)
+      const biweeklyPayment = fixedMonthlyPayment / 2;
+      
+      while (balance > 0.01 && paymentNum <= maxPayments) {
+        const interestPayment = balance * dailyRate * 14;
+        let principalPayment = biweeklyPayment - interestPayment;
+        
+        if (balance - principalPayment < 0.01) {
+          principalPayment = balance;
+          balance = 0;
+        } else {
+          balance -= principalPayment;
+        }
+        
+        totalInterestPaid += interestPayment;
+        const actualPayment = interestPayment + principalPayment;
+        totalPaid += actualPayment;
+        
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        
+        schedule.push({
+          paymentNum,
+          date: `${year}-${month}`,
+          payment: actualPayment,
+          principal: principalPayment,
+          interest: interestPayment,
+          balance: Math.max(0, balance),
+          totalInterest: totalInterestPaid
+        });
+        
+        currentDate.setDate(currentDate.getDate() + 14);
+        paymentNum++;
+        
+        if (balance < 0.01) break;
+      }
+      
+      const yearsToPayoff = schedule.length / 26;
+      const endDate = schedule.length > 0 ? schedule[schedule.length - 1].date : startDateStr;
+      
+      return {
+        loanAmount: principal,
+        paymentAmount: biweeklyPayment,
+        totalPayments: schedule.length,
+        totalPaid,
+        totalInterest: totalInterestPaid,
+        endDate,
+        schedule,
+        yearsToPayoff
+      };
+    }
+  }, []);
+
+  // Calculate projections from today forward with remaining balance
+  const calculateForwardProjections = useCallback(() => {
+    const outstandingBalance = getCurrentOutstandingBalance();
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Use CURRENT monthly payment amount (not recalculating)
+    const currentMonthlyPayment = paymentAmount;
+    
+    // Calculate monthly projection: pay off remaining balance with current monthly payment
+    const monthlyProjection = calculatePayoffWithFixedPayment(
+      outstandingBalance,
+      interestRate / 100,
+      currentMonthlyPayment,
+      todayStr,
+      true
+    );
+    
+    // Calculate biweekly projection: pay off remaining balance with half payments every 2 weeks
+    const biweeklyProjection = calculatePayoffWithFixedPayment(
+      outstandingBalance,
+      interestRate / 100,
+      currentMonthlyPayment,
+      todayStr,
+      false
+    );
+    
+    return { monthlyProjection, biweeklyProjection, outstandingBalance };
+  }, [getCurrentOutstandingBalance, interestRate, paymentAmount, calculatePayoffWithFixedPayment]);
+  
+  // Get forward projections
+  const forwardProjections = useMemo(() => calculateForwardProjections(), [calculateForwardProjections]);
+  
+  // Calculate remaining interest and time using FORWARD projections from today
+  const remainingInterest = paymentType === 'monthly' 
+    ? forwardProjections.monthlyProjection.totalInterest 
+    : forwardProjections.biweeklyProjection.totalInterest;
+    
+  const remainingInterestComparison = paymentType === 'monthly'
+    ? forwardProjections.biweeklyProjection.totalInterest
+    : forwardProjections.monthlyProjection.totalInterest;
+    
+  const remainingYears = paymentType === 'monthly'
+    ? forwardProjections.monthlyProjection.yearsToPayoff
+    : forwardProjections.biweeklyProjection.yearsToPayoff;
+    
+  const remainingYearsComparison = paymentType === 'monthly'
+    ? forwardProjections.biweeklyProjection.yearsToPayoff
+    : forwardProjections.monthlyProjection.yearsToPayoff;
+  
+  // Calculate savings based on comparison mode (using forward projections)
   let interestSaved, timeSaved;
   
   if (comparisonMode === 'extra-payments') {
-    // Comparing with vs without extra payments
-    // comparisonCalc = without extra, primaryCalc = with extra
-    interestSaved = comparisonCalc.totalInterest - totalInterest;
-    timeSaved = comparisonCalc.yearsToPayoff - yearsToPayoff;
-  } else {
-    // Comparing monthly vs biweekly
-    // Always show savings as: monthly - biweekly (biweekly saves money)
-    const monthlyInterest = paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest;
-    const biweeklyInterest = paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest;
-    const monthlyYears = paymentType === 'monthly' ? yearsToPayoff : comparisonCalc.yearsToPayoff;
-    const biweeklyYears = paymentType === 'biweekly' ? yearsToPayoff : comparisonCalc.yearsToPayoff;
+    // For extra payments, compare the actual schedules (current implementation is correct)
+    // Calculate remaining from actual schedules
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    interestSaved = monthlyInterest - biweeklyInterest;
-    timeSaved = monthlyYears - biweeklyYears;
+    let interestPaidSoFar = 0;
+    let interestPaidSoFarComparison = 0;
+    let paymentsPassed = 0;
+    let paymentsPassedComparison = 0;
+    
+    for (const payment of schedule) {
+      const paymentDate = new Date(payment.date);
+      paymentDate.setHours(0, 0, 0, 0);
+      if (paymentDate <= today) {
+        interestPaidSoFar = payment.totalInterest;
+        paymentsPassed++;
+      } else break;
+    }
+    
+    for (const payment of comparisonCalc.schedule) {
+      const paymentDate = new Date(payment.date);
+      paymentDate.setHours(0, 0, 0, 0);
+      if (paymentDate <= today) {
+        interestPaidSoFarComparison = payment.totalInterest;
+        paymentsPassedComparison++;
+      } else break;
+    }
+    
+    const totalInterestCurrent = schedule[schedule.length - 1]?.totalInterest || 0;
+    const totalInterestComp = comparisonCalc.schedule[comparisonCalc.schedule.length - 1]?.totalInterest || 0;
+    
+    const remainingInterestCurrent = Math.max(0, totalInterestCurrent - interestPaidSoFar);
+    const remainingInterestComp = Math.max(0, totalInterestComp - interestPaidSoFarComparison);
+    
+    const paymentsRemainingCurrent = Math.max(0, schedule.length - paymentsPassed);
+    const paymentsRemainingComp = Math.max(0, comparisonCalc.schedule.length - paymentsPassedComparison);
+    
+    const remainingYearsCurrent = paymentsRemainingCurrent / (schedule.length / yearsToPayoff);
+    const remainingYearsComp = paymentsRemainingComp / (comparisonCalc.schedule.length / comparisonCalc.yearsToPayoff);
+    
+    interestSaved = remainingInterestComp - remainingInterestCurrent;
+    timeSaved = remainingYearsComp - remainingYearsCurrent;
+  } else {
+    // Comparing monthly vs biweekly using forward projections
+    interestSaved = remainingInterestComparison - remainingInterest;
+    timeSaved = remainingYearsComparison - remainingYears;
   }
 
   const isExtraPaymentComparison = comparisonMode === 'extra-payments';
@@ -564,9 +1087,10 @@ const MortgageCalculator: React.FC = () => {
       }
 
       await exportToExcel(primaryData, investmentData, compareLoansData, refinanceDataExport);
+      success('Excel export completed successfully!');
     } catch (error) {
-      console.error('Error exporting to Excel:', error);
-      alert('Failed to export to Excel. Please try again.');
+      logger.error('Error exporting to Excel', error);
+      showError(ERROR_MESSAGES.EXPORT_EXCEL_FAILED);
     }
   }, [
     homeValue, downPayment, loanAmount, interestRate, tenure, paymentAmount,
@@ -600,9 +1124,10 @@ const MortgageCalculator: React.FC = () => {
         propertyTax: propertyTax > 0 ? propertyTax : undefined,
         insurance: homeInsurance > 0 ? homeInsurance : undefined,
       });
+      success('PDF export completed successfully!');
     } catch (error) {
-      console.error('Error exporting to PDF:', error);
-      alert('Failed to export to PDF. Please try again.');
+      logger.error('Error exporting to PDF', error);
+      showError(ERROR_MESSAGES.EXPORT_PDF_FAILED);
     }
   }, [homeValue, downPayment, loanAmount, interestRate, tenure, paymentAmount, totalInterest, totalPaid, endDate, schedule, selectedCurrency, propertyTax, homeInsurance]);
 
@@ -635,26 +1160,27 @@ const MortgageCalculator: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      success('CSV export completed successfully!');
     } catch (error) {
-      console.error('Error exporting to CSV:', error);
-      alert('Failed to export to CSV. Please try again.');
+      logger.error('Error exporting to CSV', error);
+      showError(ERROR_MESSAGES.EXPORT_CSV_FAILED);
     }
   }, [schedule]);
 
-  // Comparison bar chart data
+  // Comparison bar chart data - showing REMAINING interest from today forward
   // Memoized to avoid recalculation on every render
   const comparisonBarData = useMemo(() => isExtraPaymentComparison
     ? [
         { 
           name: `Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'}`, 
-          interest: comparisonCalc.totalInterest,
+          interest: remainingInterestComparison,
           type: 'comparison',
           label: `Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments`,
           endDate: formatDate(comparisonCalc.endDate)
         },
         { 
           name: `With Extra Payments`, 
-          interest: totalInterest,
+          interest: remainingInterest,
           type: 'primary',
           label: 'With Extra Payments',
           endDate: formatDate(endDate)
@@ -663,19 +1189,19 @@ const MortgageCalculator: React.FC = () => {
     : [
         { 
           name: 'Monthly Payments',
-          interest: paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest,
+          interest: paymentType === 'monthly' ? remainingInterest : remainingInterestComparison,
           type: 'monthly',
           label: 'Monthly Payments',
           endDate: formatDate(paymentType === 'monthly' ? endDate : comparisonCalc.endDate)
         },
         {
           name: 'Bi-weekly Payments',
-          interest: paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest,
+          interest: paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison,
           type: 'biweekly',
           label: 'Bi-weekly Payments',
           endDate: formatDate(paymentType === 'biweekly' ? endDate : comparisonCalc.endDate)
         }
-      ], [isExtraPaymentComparison, paymentType, comparisonCalc.totalInterest, comparisonCalc.endDate, totalInterest, endDate]);
+      ], [isExtraPaymentComparison, paymentType, remainingInterest, remainingInterestComparison, comparisonCalc.endDate, endDate]);
 
   return (
     <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
@@ -719,6 +1245,70 @@ const MortgageCalculator: React.FC = () => {
             </Link>
           </div>
 
+          {/* Save/Update Mortgage Confirmation Modal */}
+          {showSaveMortgageModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">
+                  {selectedMortgageId ? 'Update Mortgage Tracker?' : 'Save & Track This Mortgage?'}
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  {selectedMortgageId 
+                    ? 'Update the selected mortgage with the current values. Changes will be reflected in the tracker below.'
+                    : 'Save this mortgage to track it over time. You can view all your saved mortgages in the tracker below.'}
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Mortgage Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newMortgageName}
+                    onChange={(e) => setNewMortgageName(e.target.value)}
+                    placeholder="e.g., Primary Home, Investment Property"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newMortgageName.trim()) {
+                        handleSaveCurrentMortgage();
+                      } else if (e.key === 'Escape') {
+                        setShowSaveMortgageModal(false);
+                        if (!selectedMortgageId) {
+                          setNewMortgageName('');
+                        }
+                      }
+                    }}
+                    autoFocus
+                  />
+                  {selectedMortgageId && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Note: A mortgage with the same name cannot exist. The selected mortgage will be updated with the current values.
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowSaveMortgageModal(false);
+                      if (!selectedMortgageId) {
+                        setNewMortgageName('');
+                      }
+                    }}
+                    className="px-4 py-2 text-sm font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveCurrentMortgage}
+                    disabled={!newMortgageName.trim()}
+                    className="px-4 py-2 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {selectedMortgageId ? 'Confirm & Update' : 'Confirm & Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Centered Heading */}
           <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-serif font-bold text-slate-800 tracking-tight animate-fadeIn text-center px-2 mb-3">
             Free Mortgage Calculator: Investment Property, Bi-Weekly & Loan Comparison
@@ -727,34 +1317,34 @@ const MortgageCalculator: React.FC = () => {
           {/* Toggle and Currency Selector - Toggle Centered, Currency Right (Separate) */}
           <div className="relative mb-3">
             {/* Toggle - Centered */}
-            <div className="flex justify-center">
-              <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
-                <button
-                  onClick={() => setPropertyType('primary')}
-                  className={`
-                    flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                    ${propertyType === 'primary' 
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                    }
-                  `}
-                >
-                  <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
-                  <span>Primary</span>
-                </button>
-                <button
-                  onClick={() => setPropertyType('investment')}
-                  className={`
-                    flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                    ${propertyType === 'investment' 
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                    }
-                  `}
-                >
-                  <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
-                  <span>Investment</span>
-                </button>
+          <div className="flex justify-center">
+            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+              <button
+                onClick={() => setPropertyType('primary')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'primary' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
+                <span>Primary</span>
+              </button>
+              <button
+                onClick={() => setPropertyType('investment')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'investment' 
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
+                <span>Investment</span>
+              </button>
               </div>
             </div>
             
@@ -816,9 +1406,37 @@ const MortgageCalculator: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider" style={{ color: '#334155' }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" style={{ color: '#334155' }}>
                     Home Value
                   </label>
+                    {/* Saved Mortgages Dropdown */}
+                    {currentUser && savedMortgages.length > 0 && (
+                      <select
+                        value={selectedMortgageId || ''}
+                        onChange={(e) => {
+                          const mortgageId = e.target.value;
+                          if (mortgageId) {
+                            const mortgage = savedMortgages.find(m => m.id === mortgageId);
+                            if (mortgage) {
+                              handleLoadMortgage(mortgage);
+                            }
+                          } else {
+                            setSelectedMortgageId(null);
+                            setNewMortgageName(''); // Clear name when selecting "New Mortgage"
+                          }
+                        }}
+                        className="px-2 py-1 text-xs font-semibold bg-white border-2 border-blue-300 rounded-md text-blue-700 hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      >
+                        <option value="">New Mortgage</option>
+                        {savedMortgages.map((mortgage) => (
+                          <option key={mortgage.id} value={mortgage.id}>
+                            {mortgage.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -1292,6 +1910,30 @@ const MortgageCalculator: React.FC = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Save/Update Mortgage Button - Only show when logged in */}
+                  {currentUser && (
+                    <div className="mt-4 pt-3 border-t border-slate-200">
+                      <button
+                        onClick={() => {
+                          if (selectedMortgageId) {
+                            // If a mortgage is selected, pre-fill the name
+                            const selectedMortgage = savedMortgages.find(m => m.id === selectedMortgageId);
+                            if (selectedMortgage) {
+                              setNewMortgageName(selectedMortgage.name);
+                            }
+                          } else {
+                            setNewMortgageName('');
+                          }
+                          setShowSaveMortgageModal(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <Home className="w-4 h-4" />
+                        {selectedMortgageId ? 'Update Tracker' : 'Save & Track This Mortgage'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1322,10 +1964,10 @@ const MortgageCalculator: React.FC = () => {
                             <td className="py-1 px-1 text-right font-semibold text-slate-900">{formatCurrency(paymentAmount)}</td>
                           </tr>
                           {totalMonthlyCosts > 0 && (
-                            <tr className="border-b-2 border-blue-300 bg-blue-50">
+                              <tr className="border-b-2 border-blue-300 bg-blue-50">
                               <td className="py-1 px-1 text-slate-800 font-bold text-[10px]">Total Monthly</td>
                               <td className="py-1 px-1 text-right font-bold text-blue-700">{formatCurrency(trueMonthlyPayment)}</td>
-                            </tr>
+                              </tr>
                           )}
                           <tr>
                             <td className="py-1 px-1 text-slate-700 text-[10px]">Paid / Term</td>
@@ -1688,15 +2330,15 @@ const MortgageCalculator: React.FC = () => {
               <div className="relative p-2">
                 <div className="mb-1.5">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                       <h2 className="text-sm font-serif text-slate-800 tracking-wide font-bold relative">
-                        Payment Plan Comparison
+                      Payment Plan Comparison
                         <div className="absolute -bottom-0.5 left-0 w-10 h-0.5 bg-gradient-to-r from-green-500 to-emerald-500"></div>
-                      </h2>
+                    </h2>
                       <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full">
                         {isExtraPaymentComparison ? 'Regular vs Extra' : 'Monthly vs Bi-weekly'}
-                      </span>
-                    </div>
+                    </span>
+                  </div>
                     <button
                       onClick={() => {
                         // Reset to default values
@@ -1720,10 +2362,10 @@ const MortgageCalculator: React.FC = () => {
                   {/* Dynamic English Description */}
                   <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-2 mb-1.5">
                     <p className="text-[11px] text-slate-700 leading-relaxed">
-                      {isExtraPaymentComparison 
-                        ? `By making extra payments of ${formatCurrency(extraPaymentAmount)} ${extraPaymentFrequency === 'monthly' ? 'per month' : 'every two weeks'}, you'll save ${formatCurrency(interestSaved)} in interest and pay off your ${formatCurrency(loanAmount)} loan ${formatYearsMonths(timeSaved)} faster. The chart below shows how much less interest you'll pay compared to regular payments.`
-                        : `Switching from monthly to bi-weekly payments means you'll make 26 payments per year instead of 12, which equals one extra monthly payment annually. This strategy saves you ${formatCurrency(interestSaved)} in interest and helps you pay off your ${formatCurrency(loanAmount)} loan ${formatYearsMonths(timeSaved)} sooner. The chart compares total interest paid for both payment plans.`}
-                    </p>
+                    {isExtraPaymentComparison 
+                        ? `By making extra payments of ${formatCurrency(extraPaymentAmount)} ${extraPaymentFrequency === 'monthly' ? 'per month' : 'every two weeks'}, you'll save ${formatCurrency(Math.abs(interestSaved))} in remaining interest and pay off your loan ${formatYearsMonths(Math.abs(timeSaved))} faster. The chart shows outstanding interest you'll pay from today to payoff.`
+                        : `With your current outstanding balance of ${formatCurrency(forwardProjections.outstandingBalance)}, switching to bi-weekly payments from today would save you ${formatCurrency(Math.abs(interestSaved))} in interest and pay off your loan ${formatYearsMonths(Math.abs(timeSaved))} sooner. Bi-weekly payments accelerate payoff because you make 26 payments per year (effectively one extra monthly payment). The chart compares forward projections from today.`}
+                  </p>
                   </div>
                 </div>
 
@@ -1732,17 +2374,17 @@ const MortgageCalculator: React.FC = () => {
                   <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2 border-2 border-emerald-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
                     <div className="relative text-center">
                       <div className="text-sm font-serif font-bold text-emerald-700 mb-0.5">
-                        {formatCurrency(interestSaved)}
+                        {formatCurrency(Math.abs(interestSaved))}
                       </div>
                       <div className="text-[9px] text-emerald-600 uppercase tracking-wide font-medium">
                         Interest Saved
                       </div>
+                      </div>
                     </div>
-                  </div>
                   <div className="flex-1 bg-gradient-to-br from-emerald-50/80 to-green-100/80 rounded-lg p-2 border-2 border-emerald-300/60 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 hover:border-emerald-400 backdrop-blur-sm relative overflow-hidden group/card">
                     <div className="relative text-center">
                       <div className="text-sm font-serif font-bold text-emerald-700 mb-0.5">
-                        {formatYearsMonths(timeSaved)}
+                        {formatYearsMonths(Math.abs(timeSaved))}
                       </div>
                       <div className="text-[9px] text-emerald-600 uppercase tracking-wide font-medium">
                         Time Saved
@@ -1758,11 +2400,11 @@ const MortgageCalculator: React.FC = () => {
                       <h3>Payment Plan Comparison Chart</h3>
                       <p>
                         {isExtraPaymentComparison 
-                          ? `Bar chart comparing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments (${formatCurrency(comparisonCalc.totalInterest)} total interest) vs With Extra Payments (${formatCurrency(totalInterest)} total interest). Extra payments save ${formatCurrency(interestSaved)} in interest.`
-                          : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest). Bi-weekly saves ${formatCurrency(interestSaved)} in interest.`}
+                          ? `Bar chart comparing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments (${formatCurrency(remainingInterestComparison)} remaining interest from today) vs With Extra Payments (${formatCurrency(remainingInterest)} remaining interest from today). Extra payments save ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`
+                          : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? remainingInterest : remainingInterestComparison)} remaining interest from today) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison)} remaining interest from today). Bi-weekly saves ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`}
                       </p>
                     </div>
-                    <ResponsiveContainer width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(comparisonCalc.totalInterest)} total interest versus Extra Payments with ${formatCurrency(totalInterest)} total interest, saving ${formatCurrency(interestSaved)}` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? totalInterest : comparisonCalc.totalInterest)} total interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? totalInterest : comparisonCalc.totalInterest)} total interest, saving ${formatCurrency(interestSaved)}`}>
+                    <ResponsiveContainer width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(remainingInterestComparison)} remaining interest versus Extra Payments with ${formatCurrency(remainingInterest)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? remainingInterest : remainingInterestComparison)} remaining interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward`}>
                       <BarChart data={comparisonBarData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} aria-label="Payment plan comparison bar chart">
                         <defs>
                           <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1797,7 +2439,7 @@ const MortgageCalculator: React.FC = () => {
                           tickFormatter={(value) => formatCurrencyCompact(value)}
                           tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                           stroke="#94a3b8"
-                          label={{ value: 'Interest Paid', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#475569', fontWeight: 700 } }}
+                          label={{ value: 'Remaining Interest', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#475569', fontWeight: 700 } }}
                           domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.3)]}
                           width={60}
                         />
@@ -1809,7 +2451,7 @@ const MortgageCalculator: React.FC = () => {
                                 <div className="bg-white border-2 border-slate-200 rounded-xl p-3 shadow-xl">
                                   <p className="text-sm font-bold text-slate-800 mb-2">{data.label}</p>
                                   <p className="text-lg font-bold text-blue-600">{formatCurrency(data.interest)}</p>
-                                  <p className="text-xs text-slate-600 mt-1">Total Interest</p>
+                                  <p className="text-xs text-slate-600 mt-1">Remaining Interest (from today)</p>
                                   <div className="border-t border-slate-200 mt-2 pt-2">
                                     <p className="text-xs text-slate-600">Paid off by: <span className="font-semibold text-slate-800">{data.endDate}</span></p>
                                   </div>
@@ -2009,6 +2651,260 @@ const MortgageCalculator: React.FC = () => {
                 {/* Amortization Table */}
                 <AmortizationTable schedule={schedule} />
 
+                {/* Mortgage Tracker - Only show when logged in and has saved mortgages */}
+                {currentUser && savedMortgages.length > 0 && (
+                  <div id="mortgage-tracker" className="mt-6 mb-6">
+                    <div className="bg-white rounded-xl shadow-xl border-2 border-blue-100 p-6">
+                      <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Home className="w-6 h-6 text-blue-600" />
+                        Mortgage Tracker
+                      </h2>
+                      
+                      {savedMortgages.map((mortgage) => {
+                        // Calculate current mortgage metrics
+                        const mortgageLoanAmount = mortgage.homeValue - mortgage.downPayment;
+                        const isCurrentMortgage = selectedMortgageId === mortgage.id;
+                        
+                        // Calculate paid and remaining amounts from start date to today
+                        let principalPaidFromPayments = 0; // Principal paid from loan payments (excluding down payment)
+                        let principalPaid = mortgage.downPayment; // Total principal paid (including down payment)
+                        let interestPaid = 0;
+                        let principalRemaining = mortgageLoanAmount;
+                        let interestRemaining = 0;
+                        
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const startDateObj = new Date(mortgage.startDate);
+                        startDateObj.setHours(0, 0, 0, 0);
+                        
+                        if (isCurrentMortgage && schedule.length > 0) {
+                          // Use current schedule if this is the selected mortgage
+                          // Only count payments from start date to today
+                          schedule.forEach((item) => {
+                            const paymentDate = new Date(item.date);
+                            paymentDate.setHours(0, 0, 0, 0);
+                            
+                            if (paymentDate >= startDateObj && paymentDate <= today) {
+                              principalPaidFromPayments += item.principal;
+                              principalPaid += item.principal;
+                              interestPaid += item.interest;
+                            }
+                          });
+                          
+                          // Outstanding loan = loan amount - principal paid from payments
+                          principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
+                          
+                          // Calculate remaining interest (total interest - interest paid)
+                          interestRemaining = Math.max(0, totalInterest - interestPaid);
+                        } else {
+                          // For other mortgages, recalculate schedule to get accurate numbers
+                          const monthsElapsed = Math.max(0, Math.floor((today.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                          const totalMonths = mortgage.tenure * 12;
+                          
+                          if (monthsElapsed > 0 && monthsElapsed < totalMonths) {
+                            // Recalculate schedule for this mortgage
+                            const mortgageLoan = mortgage.homeValue - mortgage.downPayment;
+                            const monthlyRate = mortgage.interestRate / 100 / 12;
+                            const numPayments = mortgage.paymentType === 'biweekly' ? mortgage.tenure * 26 : mortgage.tenure * 12;
+                            const paymentAmount = mortgage.paymentType === 'biweekly' 
+                              ? (mortgageLoan * monthlyRate * 2) / (1 - Math.pow(1 + monthlyRate * 2, -numPayments))
+                              : (mortgageLoan * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numPayments));
+                            
+                            if (isNaN(paymentAmount) || !isFinite(paymentAmount)) {
+                              // Fallback calculation if payment amount calculation fails
+                              principalRemaining = mortgageLoanAmount;
+                              interestRemaining = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                            } else {
+                              let balance = mortgageLoan;
+                              for (let i = 0; i < monthsElapsed && i < totalMonths; i++) {
+                                const interest = balance * monthlyRate;
+                                const principal = paymentAmount - interest;
+                                balance -= principal;
+                                principalPaidFromPayments += principal;
+                                principalPaid += principal;
+                                interestPaid += interest;
+                              }
+                              
+                              // Outstanding loan = loan amount - principal paid from payments
+                              principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
+                              
+                              // Calculate total interest for the mortgage
+                              const totalInterestForMortgage = (paymentAmount * numPayments) - mortgageLoan;
+                              interestRemaining = Math.max(0, totalInterestForMortgage - interestPaid);
+                            }
+                          } else if (monthsElapsed >= totalMonths) {
+                            // Loan is fully paid
+                            principalPaidFromPayments = mortgageLoanAmount;
+                            principalPaid = mortgage.downPayment + mortgageLoanAmount;
+                            principalRemaining = 0;
+                            const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                            interestPaid = totalInterestForMortgage;
+                            interestRemaining = 0;
+                          } else {
+                            // Loan hasn't started yet
+                            principalRemaining = mortgageLoanAmount;
+                            const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                            interestRemaining = totalInterestForMortgage;
+                          }
+                        }
+                        
+                        return (
+                          <div
+                            key={mortgage.id}
+                            className={`mb-4 p-4 rounded-lg border-2 ${
+                              isCurrentMortgage
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-slate-200 bg-slate-50'
+                            }`}
+                          >
+                            {/* Mortgage Name */}
+                            <div className="flex items-center justify-between mb-4">
+                              {editingMortgageName === mortgage.id ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="text"
+                                    value={editingMortgageNameValue}
+                                    onChange={(e) => setEditingMortgageNameValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleUpdateMortgageName(mortgage.id, editingMortgageNameValue);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingMortgageName(null);
+                                        setEditingMortgageNameValue('');
+                                      }
+                                    }}
+                                    className="flex-1 px-3 py-2 text-base font-semibold border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateMortgageName(mortgage.id, editingMortgageNameValue)}
+                                    className="p-2 text-green-600 hover:bg-green-50 rounded"
+                                  >
+                                    <Check className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingMortgageName(null);
+                                      setEditingMortgageNameValue('');
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <h3 className="text-lg font-bold text-slate-800">{mortgage.name}</h3>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        handleLoadMortgage(mortgage);
+                                        // Scroll to top of calculator to see the loaded values
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                      }}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                      title="Load and edit mortgage"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteMortgage(mortgage.id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            {/* KPI Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                              {/* Loan Amount Taken */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">Loan Amount Taken</div>
+                                <div className="text-lg font-bold text-slate-800">
+                                  {formatCurrency(mortgageLoanAmount, mortgage.currency)}
+                                </div>
+                              </div>
+
+                              {/* Outstanding Loan */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">Outstanding Loan</div>
+                                <div className="text-lg font-bold text-red-600">
+                                  {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? mortgageLoanAmount : Math.max(0, principalRemaining), mortgage.currency)}
+                                </div>
+                              </div>
+
+                              {/* Payment Type */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">Payment Type</div>
+                                <div className="text-lg font-bold text-slate-800 capitalize">
+                                  {mortgage.paymentType}
+                                </div>
+                                <div className="text-xs text-slate-400 my-1">----</div>
+                                <div className="text-xs text-slate-600 mt-2">Start Date</div>
+                                <div className="text-sm font-semibold text-slate-700">
+                                  {formatDate(mortgage.startDate)}
+                                </div>
+                              </div>
+
+                              {/* Principal/Interest Paid */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">Paid Till Now</div>
+                                <div className="text-sm font-semibold text-green-600 mb-1">
+                                  Principal: {formatCurrency(principalPaid, mortgage.currency)}
+                                </div>
+                                <div className="text-xs text-slate-400 my-1">---</div>
+                                <div className="text-sm font-semibold text-green-600">
+                                  Interest: {formatCurrency(interestPaid, mortgage.currency)}
+                                </div>
+                              </div>
+
+                              {/* Principal/Interest To Be Paid */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">To Be Paid</div>
+                                <div className="text-sm font-semibold text-orange-600 mb-1">
+                                  Principal: {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? 0 : Math.max(0, principalRemaining), mortgage.currency)}
+                                </div>
+                                <div className="text-xs text-slate-400 my-1">---</div>
+                                <div className="text-sm font-semibold text-orange-600">
+                                  Interest: {formatCurrency(isNaN(interestRemaining) || !isFinite(interestRemaining) ? 0 : Math.max(0, interestRemaining), mortgage.currency)}
+                                </div>
+                              </div>
+
+                              {/* End Date */}
+                              <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                <div className="text-xs text-slate-600 mb-1">End Date</div>
+                                <div className="text-lg font-bold text-slate-800">
+                                  {isCurrentMortgage ? formatDate(endDate) : (() => {
+                                    const start = new Date(mortgage.startDate);
+                                    const end = new Date(start);
+                                    end.setFullYear(end.getFullYear() + mortgage.tenure);
+                                    return formatDate(end.toISOString().split('T')[0]);
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {saveError && (
+                        <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded">
+                          {saveError}
+                        </div>
+                      )}
+                      {isSavingMortgage && (
+                        <div className="mt-4 text-sm text-blue-600">
+                          Saving...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Export & Share Actions Section - Moved here for visibility */}
                 <div className="mt-4 mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
                   <div className="mb-4">
@@ -2172,6 +3068,260 @@ const MortgageCalculator: React.FC = () => {
 
             {/* Amortization Table */}
             <AmortizationTable schedule={schedule} />
+
+            {/* Mortgage Tracker - Only show when logged in and has saved mortgages */}
+            {currentUser && savedMortgages.length > 0 && (
+              <div id="mortgage-tracker" className="mt-6 mb-6">
+                <div className="bg-white rounded-xl shadow-xl border-2 border-blue-100 p-6">
+                  <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Home className="w-6 h-6 text-blue-600" />
+                    Mortgage Tracker
+                  </h2>
+                  
+                  {savedMortgages.map((mortgage) => {
+                    // Calculate current mortgage metrics
+                    const mortgageLoanAmount = mortgage.homeValue - mortgage.downPayment;
+                    const isCurrentMortgage = selectedMortgageId === mortgage.id;
+                    
+                    // Calculate paid and remaining amounts from start date to today
+                    let principalPaidFromPayments = 0; // Principal paid from loan payments (excluding down payment)
+                    let principalPaid = mortgage.downPayment; // Total principal paid (including down payment)
+                    let interestPaid = 0;
+                    let principalRemaining = mortgageLoanAmount;
+                    let interestRemaining = 0;
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const startDateObj = new Date(mortgage.startDate);
+                    startDateObj.setHours(0, 0, 0, 0);
+                    
+                    if (isCurrentMortgage && schedule.length > 0) {
+                      // Use current schedule if this is the selected mortgage
+                      // Only count payments from start date to today
+                      schedule.forEach((item) => {
+                        const paymentDate = new Date(item.date);
+                        paymentDate.setHours(0, 0, 0, 0);
+                        
+                        if (paymentDate >= startDateObj && paymentDate <= today) {
+                          principalPaidFromPayments += item.principal;
+                          principalPaid += item.principal;
+                          interestPaid += item.interest;
+                        }
+                      });
+                      
+                      // Outstanding loan = loan amount - principal paid from payments
+                      principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
+                      
+                      // Calculate remaining interest (total interest - interest paid)
+                      interestRemaining = Math.max(0, totalInterest - interestPaid);
+                    } else {
+                      // For other mortgages, recalculate schedule to get accurate numbers
+                      const monthsElapsed = Math.max(0, Math.floor((today.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+                      const totalMonths = mortgage.tenure * 12;
+                      
+                      if (monthsElapsed > 0 && monthsElapsed < totalMonths) {
+                        // Recalculate schedule for this mortgage
+                        const mortgageLoan = mortgage.homeValue - mortgage.downPayment;
+                        const monthlyRate = mortgage.interestRate / 100 / 12;
+                        const numPayments = mortgage.paymentType === 'biweekly' ? mortgage.tenure * 26 : mortgage.tenure * 12;
+                        const paymentAmount = mortgage.paymentType === 'biweekly' 
+                          ? (mortgageLoan * monthlyRate * 2) / (1 - Math.pow(1 + monthlyRate * 2, -numPayments))
+                          : (mortgageLoan * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numPayments));
+                        
+                        if (isNaN(paymentAmount) || !isFinite(paymentAmount)) {
+                          // Fallback calculation if payment amount calculation fails
+                          principalRemaining = mortgageLoanAmount;
+                          interestRemaining = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                        } else {
+                          let balance = mortgageLoan;
+                          for (let i = 0; i < monthsElapsed && i < totalMonths; i++) {
+                            const interest = balance * monthlyRate;
+                            const principal = paymentAmount - interest;
+                            balance -= principal;
+                            principalPaidFromPayments += principal;
+                            principalPaid += principal;
+                            interestPaid += interest;
+                          }
+                          
+                          // Outstanding loan = loan amount - principal paid from payments
+                          principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
+                          
+                          // Calculate total interest for the mortgage
+                          const totalInterestForMortgage = (paymentAmount * numPayments) - mortgageLoan;
+                          interestRemaining = Math.max(0, totalInterestForMortgage - interestPaid);
+                        }
+                      } else if (monthsElapsed >= totalMonths) {
+                        // Loan is fully paid
+                        principalPaidFromPayments = mortgageLoanAmount;
+                        principalPaid = mortgage.downPayment + mortgageLoanAmount;
+                        principalRemaining = 0;
+                        const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                        interestPaid = totalInterestForMortgage;
+                        interestRemaining = 0;
+                      } else {
+                        // Loan hasn't started yet
+                        principalRemaining = mortgageLoanAmount;
+                        const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
+                        interestRemaining = totalInterestForMortgage;
+                      }
+                    }
+                    
+                    return (
+                      <div
+                        key={mortgage.id}
+                        className={`mb-4 p-4 rounded-lg border-2 ${
+                          isCurrentMortgage
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-200 bg-slate-50'
+                        }`}
+                      >
+                        {/* Mortgage Name */}
+                        <div className="flex items-center justify-between mb-4">
+                          {editingMortgageName === mortgage.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <input
+                                type="text"
+                                value={editingMortgageNameValue}
+                                onChange={(e) => setEditingMortgageNameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleUpdateMortgageName(mortgage.id, editingMortgageNameValue);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingMortgageName(null);
+                                    setEditingMortgageNameValue('');
+                                  }
+                                }}
+                                className="flex-1 px-3 py-2 text-base font-semibold border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleUpdateMortgageName(mortgage.id, editingMortgageNameValue)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded"
+                              >
+                                <Check className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingMortgageName(null);
+                                  setEditingMortgageNameValue('');
+                                }}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <h3 className="text-lg font-bold text-slate-800">{mortgage.name}</h3>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    handleLoadMortgage(mortgage);
+                                    // Scroll to top of calculator to see the loaded values
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                  title="Load and edit mortgage"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMortgage(mortgage.id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* KPI Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                          {/* Loan Amount Taken */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">Loan Amount Taken</div>
+                            <div className="text-lg font-bold text-slate-800">
+                              {formatCurrency(mortgageLoanAmount, mortgage.currency)}
+                            </div>
+                          </div>
+
+                          {/* Outstanding Loan */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">Outstanding Loan</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? mortgageLoanAmount : Math.max(0, principalRemaining), mortgage.currency)}
+                            </div>
+                          </div>
+
+                          {/* Payment Type */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">Payment Type</div>
+                            <div className="text-lg font-bold text-slate-800 capitalize">
+                              {mortgage.paymentType}
+                            </div>
+                            <div className="text-xs text-slate-400 my-1">----</div>
+                            <div className="text-xs text-slate-600 mt-2">Start Date</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {formatDate(mortgage.startDate)}
+                            </div>
+                          </div>
+
+                          {/* Principal/Interest Paid */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">Paid Till Now</div>
+                            <div className="text-sm font-semibold text-green-600 mb-1">
+                              Principal: {formatCurrency(principalPaid, mortgage.currency)}
+                            </div>
+                            <div className="text-xs text-slate-400 my-1">---</div>
+                            <div className="text-sm font-semibold text-green-600">
+                              Interest: {formatCurrency(interestPaid, mortgage.currency)}
+                            </div>
+                          </div>
+
+                          {/* Principal/Interest To Be Paid */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">To Be Paid</div>
+                            <div className="text-sm font-semibold text-orange-600 mb-1">
+                              Principal: {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? 0 : Math.max(0, principalRemaining), mortgage.currency)}
+                            </div>
+                            <div className="text-xs text-slate-400 my-1">---</div>
+                            <div className="text-sm font-semibold text-orange-600">
+                              Interest: {formatCurrency(isNaN(interestRemaining) || !isFinite(interestRemaining) ? 0 : Math.max(0, interestRemaining), mortgage.currency)}
+                            </div>
+                          </div>
+
+                          {/* End Date */}
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <div className="text-xs text-slate-600 mb-1">End Date</div>
+                            <div className="text-lg font-bold text-slate-800">
+                              {isCurrentMortgage ? formatDate(endDate) : (() => {
+                                const start = new Date(mortgage.startDate);
+                                const end = new Date(start);
+                                end.setFullYear(end.getFullYear() + mortgage.tenure);
+                                return formatDate(end.toISOString().split('T')[0]);
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {saveError && (
+                    <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded">
+                      {saveError}
+                    </div>
+                  )}
+                  {isSavingMortgage && (
+                    <div className="mt-4 text-sm text-blue-600">
+                      Saving...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Export & Share Actions Section - Moved here for visibility */}
             <div className="mt-4 mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">

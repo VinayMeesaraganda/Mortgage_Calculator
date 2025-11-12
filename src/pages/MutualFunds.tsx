@@ -11,6 +11,7 @@ import { DatePicker } from '../components/DatePicker';
 import CurrencySelector from '../components/CurrencySelector';
 import { searchMutualFunds, getLatestNAV, getNAVForDate } from '../utils/mfapi';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
 import { 
   saveMutualFundHoldings, 
   loadMutualFundHoldings, 
@@ -19,6 +20,7 @@ import {
 
 const MutualFunds: React.FC = () => {
   const { currentUser } = useAuth();
+  const { error: showError, warning } = useToast();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('INR'); // Default to INR for Indian mutual funds
   const [holdings, setHoldings] = useState<MutualFundHolding[]>([]);
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
@@ -224,11 +226,11 @@ const MutualFunds: React.FC = () => {
         setSearchResults([]);
         setSearchQuery('');
       } else {
-        alert('Could not fetch NAV for this fund. Please try again.');
+        showError('Could not fetch NAV for this fund. Please try again.');
       }
     } catch (error) {
       console.error('Error fetching NAV:', error);
-      alert('Error fetching fund details. Please try again.');
+      showError('Error fetching fund details. Please try again.');
     } finally {
       setIsLoadingNAV(false);
     }
@@ -241,7 +243,7 @@ const MutualFunds: React.FC = () => {
     const investmentAmount = parseFloat(newInvestmentAmount.replace(/[^0-9.]/g, ''));
 
     if (!schemeCode || !schemeName || isNaN(investmentAmount) || investmentAmount <= 0) {
-      alert('Please fill in all fields with valid numbers');
+      warning('Please fill in all fields with valid numbers');
       return;
     }
 
@@ -249,7 +251,7 @@ const MutualFunds: React.FC = () => {
     if (useManualNAV) {
       const manualNavValue = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
       if (isNaN(manualNavValue) || manualNavValue <= 0) {
-        alert('Please enter a valid NAV value');
+        warning('Please enter a valid NAV value');
         return;
       }
     }
@@ -270,7 +272,7 @@ const MutualFunds: React.FC = () => {
         // Fetch NAV for the purchase date (historical NAV)
         const purchaseNavData = await getNAVForDate(schemeCode, newPurchaseDate);
         if (!purchaseNavData) {
-          alert(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
+          showError(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
           setIsLoadingNAV(false);
           return;
         }
@@ -278,7 +280,7 @@ const MutualFunds: React.FC = () => {
         // Fetch current/latest NAV for display
         const currentNavData = await getLatestNAV(schemeCode);
         if (!currentNavData) {
-          alert('Could not fetch current NAV. Please try again.');
+          showError('Could not fetch current NAV. Please try again.');
           setIsLoadingNAV(false);
           return;
         }
@@ -340,7 +342,7 @@ const MutualFunds: React.FC = () => {
       setShowAddForm(false);
     } catch (error) {
       console.error('Error adding fund:', error);
-      alert('Error adding fund. Please try again.');
+      showError('Error adding fund. Please try again.');
     } finally {
       setIsLoadingNAV(false);
     }
@@ -360,9 +362,9 @@ const MutualFunds: React.FC = () => {
     if (!holding) return;
 
     const investmentAmount = parseFloat(inlineInvestmentAmount.replace(/[^0-9.]/g, ''));
-
+    
     if (isNaN(investmentAmount) || investmentAmount <= 0) {
-      alert('Please enter a valid investment amount');
+      warning('Please enter a valid investment amount');
       return;
     }
 
@@ -370,7 +372,7 @@ const MutualFunds: React.FC = () => {
     if (inlineUseManualNAV) {
       const manualNavValue = parseFloat(inlineManualNAV.replace(/[^0-9.]/g, ''));
       if (isNaN(manualNavValue) || manualNavValue <= 0) {
-        alert('Please enter a valid NAV value');
+        warning('Please enter a valid NAV value');
         return;
       }
     }
@@ -391,7 +393,7 @@ const MutualFunds: React.FC = () => {
         // Fetch NAV for the purchase date (historical NAV)
         const purchaseNavData = await getNAVForDate(holding.schemeCode, inlinePurchaseDate);
         if (!purchaseNavData) {
-          alert(`Could not fetch NAV for ${inlinePurchaseDate}. Please check the date or use manual NAV entry.`);
+          showError(`Could not fetch NAV for ${inlinePurchaseDate}. Please check the date or use manual NAV entry.`);
           setIsLoadingNAV(false);
           return;
         }
@@ -399,7 +401,7 @@ const MutualFunds: React.FC = () => {
         // Fetch current/latest NAV for display
         const currentNavData = await getLatestNAV(holding.schemeCode);
         if (!currentNavData) {
-          alert('Could not fetch current NAV. Please try again.');
+          showError('Could not fetch current NAV. Please try again.');
           setIsLoadingNAV(false);
           return;
         }
@@ -436,7 +438,7 @@ const MutualFunds: React.FC = () => {
       setInlineManualNAV('');
     } catch (error) {
       console.error('Error adding purchase:', error);
-      alert('Error adding purchase. Please try again.');
+      showError('Error adding purchase. Please try again.');
     } finally {
       setIsLoadingNAV(false);
     }

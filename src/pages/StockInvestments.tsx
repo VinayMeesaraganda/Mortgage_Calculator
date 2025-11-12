@@ -9,8 +9,10 @@ import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { DatePicker } from '../components/DatePicker';
 import CurrencySelector from '../components/CurrencySelector';
+import { useToast } from '../components/Toast';
 
 const StockInvestments: React.FC = () => {
+  const { warning } = useToast();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('USD');
   const [holdings, setHoldings] = useState<StockHolding[]>([]);
   const [editingHoldingId, setEditingHoldingId] = useState<string | null>(null);
@@ -78,7 +80,7 @@ const StockInvestments: React.FC = () => {
     const quantity = parseFloat(newPurchaseQuantity.replace(/[^0-9.]/g, ''));
 
     if (!symbol || isNaN(currentPrice) || isNaN(purchasePrice) || isNaN(quantity) || quantity <= 0) {
-      alert('Please fill in all fields with valid numbers');
+      warning('Please fill in all fields with valid numbers');
       return;
     }
 
