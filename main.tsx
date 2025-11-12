@@ -16,9 +16,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ToastProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Routes>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
               {/* All Routes are now public */}
               <Route path="/" element={<Home />} />
               <Route path="/mortgage-calculator" element={<MortgageCalculator />} />
@@ -26,12 +26,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/mutual-funds" element={<MutualFunds />} />
               <Route path="/insurance" element={<Insurance />} />
               <Route path="/fixed-deposits" element={<FixedDeposits />} />
-              
-              {/* Redirect unknown routes to home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
+          
+          {/* Redirect unknown routes to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
   </React.StrictMode>

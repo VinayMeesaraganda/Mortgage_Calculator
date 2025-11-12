@@ -1,16 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { PieChart, ArrowLeft, Plus, Edit2, Trash2, X, Check, Search, Loader2, AlertCircle, Cloud, CloudOff, RefreshCw, ChevronDown } from 'lucide-react';
+import { PieChart, ArrowLeft, Plus, Edit2, Trash2, X, Check, Search, Loader2, AlertCircle, Cloud, CloudOff, RefreshCw, ChevronDown, TrendingUp, BarChart3 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { MutualFundHolding, MutualFundPurchase, MutualFundHoldingSummary } from '../types/mutualFund';
 import type { Currency } from '../types/mortgage';
-import { formatCurrency, setGlobalCurrency } from '../utils/formatting';
+import { formatCurrency, formatDate, setGlobalCurrency } from '../utils/formatting';
 import { CURRENCY_DATA } from '../utils/currency';
 import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { DatePicker } from '../components/DatePicker';
 import CurrencySelector from '../components/CurrencySelector';
 import LoginModal from '../components/LoginModal';
-import { searchMutualFunds, getLatestNAV, getNAVForDate } from '../utils/mfapi';
+import { searchMutualFunds, getLatestNAV, getNAVForDate, getHistoricalNAV } from '../utils/mfapi';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import { 
@@ -33,7 +34,28 @@ const MutualFunds: React.FC = () => {
   const [sipYears, setSipYears] = useState('10');
   const [sipReturns, setSipReturns] = useState('12');
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [sipCalculatorExpanded, setSipCalculatorExpanded] = useState(true);
+  const [sipCalculatorExpanded, setSipCalculatorExpanded] = useState(false);
+  const [historicalDataForScheme, setHistoricalDataForScheme] = useState<string | null>(null);
+  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
+  const [showHistoricalPerformance, setShowHistoricalPerformance] = useState(false);
+  const [showSipWarningModal, setShowSipWarningModal] = useState(false);
+  const [historicalPerformanceData, setHistoricalPerformanceData] = useState<{
+    investmentAmount: number;
+    purchaseDate: string;
+    purchaseNAV: number;
+    currentNAV: number;
+    units: number;
+    currentValue: number;
+    gainLoss: number;
+    gainLossPercent: number;
+    cagr: number;
+  } | null>(null);
+  const [historicalStartDate, setHistoricalStartDate] = useState(() => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() - 5); // Default to 5 years ago
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
   
   // Firestore sync state
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
@@ -42,12 +64,18 @@ const MutualFunds: React.FC = () => {
   const [isSynced, setIsSynced] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isInitialLoadRef = useRef(true);
+  const historicalPerformanceRef = useRef<HTMLDivElement | null>(null);
   
   // Form state for adding new mutual fund
   const [newSchemeCode, setNewSchemeCode] = useState('');
   const [newSchemeName, setNewSchemeName] = useState('');
   const [newInvestmentAmount, setNewInvestmentAmount] = useState('');
+  const [newInvestmentType, setNewInvestmentType] = useState<'onetime' | 'sip'>('onetime');
   const [newPurchaseDate, setNewPurchaseDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [newSipEndDate, setNewSipEndDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
@@ -169,8 +197,104 @@ const MutualFunds: React.FC = () => {
     return () => clearTimeout(saveTimer);
   }, [holdings, currentUser, isLoadingPortfolio]);
 
+  // Calculate CAGR for a holding
+  const calculateCAGR = useCallback((purchases: MutualFundPurchase[], currentValue: number, currentDate: Date = new Date()): number => {
+    if (purchases.length === 0 || currentValue <= 0) return 0;
+    
+    // Find the earliest purchase date
+    const earliestPurchase = purchases.reduce((earliest, purchase) => {
+      const purchaseDate = new Date(purchase.purchaseDate);
+      return purchaseDate < earliest ? purchaseDate : earliest;
+    }, new Date(purchases[0].purchaseDate));
+    
+    const totalInvested = purchases.reduce((sum, p) => sum + p.investmentAmount, 0);
+    if (totalInvested <= 0) return 0;
+    
+    const years = (currentDate.getTime() - earliestPurchase.getTime()) / (1000 * 60 * 60 * 24 * 365);
+    if (years <= 0) return 0;
+    
+    return (Math.pow(currentValue / totalInvested, 1 / years) - 1) * 100;
+  }, []);
+
+  // Calculate XIRR using Newton-Raphson method
+  const calculateXIRR = useCallback((purchases: MutualFundPurchase[], currentValue: number, currentDate: Date = new Date()): number => {
+    if (purchases.length === 0 || currentValue <= 0) return 0;
+    
+    // Create cash flows: negative for investments, positive for current value
+    const cashFlows: Array<{ date: Date; amount: number }> = purchases.map(p => ({
+      date: new Date(p.purchaseDate),
+      amount: -p.investmentAmount // Negative because it's an outflow
+    }));
+    
+    // Add final cash flow (current value as positive)
+    cashFlows.push({ date: currentDate, amount: currentValue });
+    
+    // Sort by date
+    cashFlows.sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    // Check if all dates are the same (edge case)
+    const firstDate = cashFlows[0].date.getTime();
+    const allSameDate = cashFlows.every(cf => cf.date.getTime() === firstDate);
+    if (allSameDate) {
+      // If all on same date, calculate simple return
+      const totalInvested = purchases.reduce((sum, p) => sum + p.investmentAmount, 0);
+      if (totalInvested <= 0) return 0;
+      return ((currentValue / totalInvested - 1) * 100);
+    }
+    
+    // Newton-Raphson method to find XIRR
+    let rate = 0.1; // Initial guess (10%)
+    const maxIterations = 100;
+    const tolerance = 0.0001;
+    
+    for (let i = 0; i < maxIterations; i++) {
+      let npv = 0;
+      let npvDerivative = 0;
+      
+      const baseDate = cashFlows[0].date.getTime();
+      
+      cashFlows.forEach(cf => {
+        const daysDiff = (cf.date.getTime() - baseDate) / (1000 * 60 * 60 * 24);
+        const years = daysDiff / 365.25; // Use 365.25 for more accuracy
+        
+        if (Math.abs(years) < 0.0001) {
+          npv += cf.amount;
+        } else {
+          const factor = Math.pow(1 + rate, years);
+          npv += cf.amount / factor;
+          npvDerivative -= (cf.amount * years) / (factor * (1 + rate));
+        }
+      });
+      
+      if (Math.abs(npv) < tolerance) {
+        break;
+      }
+      
+      if (Math.abs(npvDerivative) < tolerance) {
+        break;
+      }
+      
+      const newRate = rate - npv / npvDerivative;
+      
+      // Prevent negative rates or rates that are too high
+      if (newRate < -0.99 || newRate > 10 || !isFinite(newRate)) {
+        break;
+      }
+      
+      rate = newRate;
+    }
+    
+    // Clamp rate to reasonable bounds
+    if (rate < -99 || rate > 1000 || !isFinite(rate)) {
+      return 0;
+    }
+    
+    return rate * 100; // Convert to percentage
+  }, []);
+
   // Calculate average cost basis and summary for each holding
   const holdingsSummary = useMemo<MutualFundHoldingSummary[]>(() => {
+    const today = new Date();
     return holdings.map(holding => {
       const totalUnits = holding.purchases.reduce((sum, p) => sum + p.quantity, 0);
       const totalInvested = holding.purchases.reduce((sum, p) => sum + p.investmentAmount, 0);
@@ -178,6 +302,8 @@ const MutualFunds: React.FC = () => {
       const currentValue = holding.currentNAV * totalUnits;
       const gainLoss = currentValue - totalInvested;
       const gainLossPercent = totalInvested > 0 ? (gainLoss / totalInvested) * 100 : 0;
+      const cagr = calculateCAGR(holding.purchases, currentValue, today);
+      const xirr = calculateXIRR(holding.purchases, currentValue, today);
 
       return {
         holding,
@@ -186,10 +312,12 @@ const MutualFunds: React.FC = () => {
         totalInvested,
         currentValue,
         gainLoss,
-        gainLossPercent
+        gainLossPercent,
+        cagr,
+        xirr
       };
     });
-  }, [holdings]);
+  }, [holdings, calculateCAGR, calculateXIRR]);
 
   // SIP/Lumpsum Calculator
   const sipCalculation = useMemo(() => {
@@ -231,13 +359,23 @@ const MutualFunds: React.FC = () => {
     const totalGainLoss = totalCurrentValue - totalInvested;
     const totalGainLossPercent = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
 
+    // Calculate portfolio-level CAGR
+    const today = new Date();
+    const allPurchases = holdings.flatMap(h => h.purchases);
+    const portfolioCAGR = calculateCAGR(allPurchases, totalCurrentValue, today);
+    
+    // Calculate portfolio-level XIRR
+    const portfolioXIRR = calculateXIRR(allPurchases, totalCurrentValue, today);
+
     return {
       totalInvested,
       totalCurrentValue,
       totalGainLoss,
-      totalGainLossPercent
+      totalGainLossPercent,
+      cagr: portfolioCAGR,
+      xirr: portfolioXIRR
     };
-  }, [holdingsSummary]);
+  }, [holdingsSummary, holdings, calculateCAGR, calculateXIRR]);
 
   // Search for mutual funds
   const handleSearch = useCallback(async () => {
@@ -296,6 +434,11 @@ const MutualFunds: React.FC = () => {
       return;
     }
 
+    if (newInvestmentType === 'sip' && !newSipEndDate) {
+      warning('Please select SIP end date');
+      return;
+    }
+
     // If manual NAV is enabled, validate it
     if (useManualNAV) {
       const manualNavValue = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
@@ -307,59 +450,123 @@ const MutualFunds: React.FC = () => {
 
     setIsLoadingNAV(true);
     try {
-      let purchaseNAV: number;
-      let currentNAV: number;
-
-      if (useManualNAV) {
-        // Use manually entered NAV
-        purchaseNAV = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
-        
-        // Still fetch current NAV for display (optional - can use manual NAV if fetch fails)
-        const currentNavData = await getLatestNAV(schemeCode);
-        currentNAV = currentNavData?.nav || purchaseNAV; // Fallback to purchase NAV if fetch fails
-      } else {
-        // Fetch NAV for the purchase date (historical NAV)
-        const purchaseNavData = await getNAVForDate(schemeCode, newPurchaseDate);
-        if (!purchaseNavData) {
-          showError(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
-          setIsLoadingNAV(false);
-          return;
-        }
-
-        // Fetch current/latest NAV for display
-        const currentNavData = await getLatestNAV(schemeCode);
-        if (!currentNavData) {
-          showError('Could not fetch current NAV. Please try again.');
-          setIsLoadingNAV(false);
-          return;
-        }
-
-        purchaseNAV = purchaseNavData.nav;
-        currentNAV = currentNavData.nav;
+      // Fetch current/latest NAV for display
+      const currentNavData = await getLatestNAV(schemeCode);
+      if (!currentNavData) {
+        showError('Could not fetch current NAV. Please try again.');
+        setIsLoadingNAV(false);
+        return;
       }
-
-      const units = investmentAmount / purchaseNAV; // Calculate units based on purchase date NAV
+      const currentNAV = currentNavData.nav;
 
       // Check if fund already exists
       const existingHoldingIndex = holdings.findIndex(h => h.schemeCode === schemeCode);
       
-      if (existingHoldingIndex >= 0) {
-        // Add purchase to existing fund
+      if (newInvestmentType === 'sip') {
+        // SIP: Create multiple purchase records for each month
+        const startDate = new Date(newPurchaseDate);
+        const endDate = new Date(newSipEndDate);
+        const today = new Date();
+        const actualEndDate = endDate > today ? today : endDate;
+        
+        const purchases: MutualFundPurchase[] = [];
+        const purchaseDate = new Date(startDate);
+        purchaseDate.setDate(1); // Set to first of month
+        
+        while (purchaseDate <= actualEndDate) {
+          const monthDate = new Date(purchaseDate);
+          const monthDateStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-${String(monthDate.getDate()).padStart(2, '0')}`;
+          const monthStr = `${purchaseDate.getFullYear()}-${String(purchaseDate.getMonth() + 1).padStart(2, '0')}`;
+          
+          let monthNAV: number;
+          if (useManualNAV) {
+            monthNAV = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
+          } else {
+            const monthNAVData = await getNAVForDate(schemeCode, monthStr);
+            if (!monthNAVData) {
+              // Skip this month if NAV not available
+              purchaseDate.setMonth(purchaseDate.getMonth() + 1);
+              continue;
+            }
+            monthNAV = monthNAVData.nav;
+          }
+          
+          const monthUnits = investmentAmount / monthNAV;
+          
+          purchases.push({
+            id: `purchase-${Date.now()}-${Math.random()}-${purchaseDate.getTime()}`,
+            purchaseDate: monthDateStr,
+            purchasePrice: monthNAV,
+            quantity: monthUnits,
+            investmentAmount
+          });
+          
+          purchaseDate.setMonth(purchaseDate.getMonth() + 1);
+        }
+        
+        if (purchases.length === 0) {
+          showError('Could not create any purchase records. Please check dates and NAV availability.');
+          setIsLoadingNAV(false);
+          return;
+        }
+        
+        if (existingHoldingIndex >= 0) {
+          // Add purchases to existing fund
+          const updatedHoldings = [...holdings];
+          updatedHoldings[existingHoldingIndex] = {
+            ...updatedHoldings[existingHoldingIndex],
+            currentNAV,
+            purchases: [...updatedHoldings[existingHoldingIndex].purchases, ...purchases]
+          };
+          lastLocalChangeRef.current = Date.now();
+          setHoldings(updatedHoldings);
+        } else {
+          // Create new fund holding with SIP purchases
+          const newHolding: MutualFundHolding = {
+            id: `holding-${Date.now()}-${Math.random()}`,
+            schemeCode,
+            schemeName,
+            category: 'flexi-cap',
+            currentNAV,
+            purchases
+          };
+          lastLocalChangeRef.current = Date.now();
+          setHoldings([...holdings, newHolding]);
+        }
+      } else {
+        // One-time investment
+      let purchaseNAV: number;
+
+      if (useManualNAV) {
+        purchaseNAV = parseFloat(manualNAV.replace(/[^0-9.]/g, ''));
+      } else {
+        const purchaseNavData = await getNAVForDate(schemeCode, newPurchaseDate);
+        if (!purchaseNavData) {
+            showError(`Could not fetch NAV for ${newPurchaseDate}. Please check the scheme code and date.`);
+          setIsLoadingNAV(false);
+          return;
+        }
+        purchaseNAV = purchaseNavData.nav;
+      }
+
+        const units = investmentAmount / purchaseNAV;
         const newPurchase: MutualFundPurchase = {
           id: `purchase-${Date.now()}-${Math.random()}`,
           purchaseDate: newPurchaseDate,
-          purchasePrice: purchaseNAV, // Store the NAV from purchase date
+          purchasePrice: purchaseNAV,
           quantity: units,
           investmentAmount
         };
 
+        if (existingHoldingIndex >= 0) {
+          // Add purchase to existing fund
         const updatedHoldings = [...holdings];
         updatedHoldings[existingHoldingIndex] = {
           ...updatedHoldings[existingHoldingIndex],
-          currentNAV, // Update to latest NAV
+            currentNAV,
           purchases: [...updatedHoldings[existingHoldingIndex].purchases, newPurchase]
         };
-        lastLocalChangeRef.current = Date.now(); // Track local change
+          lastLocalChangeRef.current = Date.now();
         setHoldings(updatedHoldings);
       } else {
         // Create new fund holding
@@ -367,24 +574,20 @@ const MutualFunds: React.FC = () => {
           id: `holding-${Date.now()}-${Math.random()}`,
           schemeCode,
           schemeName,
-          category: 'flexi-cap', // Default category (not used for filtering anymore)
-          currentNAV, // Latest NAV for current value calculation
-          purchases: [{
-            id: `purchase-${Date.now()}-${Math.random()}`,
-            purchaseDate: newPurchaseDate,
-            purchasePrice: purchaseNAV, // NAV from purchase date
-            quantity: units,
-            investmentAmount
-          }]
+            category: 'flexi-cap',
+            currentNAV,
+            purchases: [newPurchase]
         };
-        lastLocalChangeRef.current = Date.now(); // Track local change
+          lastLocalChangeRef.current = Date.now();
         setHoldings([...holdings, newHolding]);
+        }
       }
 
       // Reset form
       setNewSchemeCode('');
       setNewSchemeName('');
       setNewInvestmentAmount('');
+      setNewInvestmentType('onetime');
       setUseManualNAV(false);
       setManualNAV('');
       setAddingPurchaseToHoldingId(null);
@@ -395,7 +598,7 @@ const MutualFunds: React.FC = () => {
     } finally {
       setIsLoadingNAV(false);
     }
-  }, [holdings, newSchemeCode, newSchemeName, newInvestmentAmount, newPurchaseDate]);
+  }, [holdings, newSchemeCode, newSchemeName, newInvestmentAmount, newPurchaseDate, newInvestmentType, newSipEndDate, useManualNAV, manualNAV, currentUser, warning, showError]);
 
   // Delete a fund holding
   const handleDeleteHolding = useCallback((holdingId: string) => {
@@ -651,6 +854,18 @@ const MutualFunds: React.FC = () => {
     };
   }, []);
 
+  // Auto-scroll to historical performance results when data is ready
+  useEffect(() => {
+    if (showHistoricalPerformance && historicalPerformanceData && historicalPerformanceRef.current) {
+      setTimeout(() => {
+        historicalPerformanceRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100); // Small delay to ensure DOM is updated
+    }
+  }, [showHistoricalPerformance, historicalPerformanceData]);
+
   // Update purchase details
   const handleUpdatePurchase = useCallback((
     holdingId: string, 
@@ -671,6 +886,125 @@ const MutualFunds: React.FC = () => {
     setEditingPurchaseId(null);
   }, [holdings]);
 
+  // Calculate historical performance based on entered amount and date (One-time only)
+  const handleCalculateHistoricalPerformance = useCallback(async () => {
+    // Check if SIP is selected - show warning modal
+    if (newInvestmentType === 'sip') {
+      setShowSipWarningModal(true);
+      return;
+    }
+
+    const schemeCode = newSchemeCode.trim();
+    const investmentAmount = parseFloat(newInvestmentAmount.replace(/[^0-9.]/g, ''));
+    
+    if (!schemeCode) {
+      warning('Please select a fund first');
+      return;
+    }
+    
+    if (isNaN(investmentAmount) || investmentAmount <= 0) {
+      warning('Please enter a valid investment amount');
+      return;
+    }
+    
+    if (!newPurchaseDate) {
+      warning('Please select a purchase date');
+      return;
+    }
+
+    setIsLoadingHistorical(true);
+    setShowHistoricalPerformance(true);
+    
+    try {
+      // One-time investment calculation only
+      const purchaseDateStr = newPurchaseDate.split('-').slice(0, 2).join('-'); // YYYY-MM format
+      const purchaseNAVData = await getNAVForDate(schemeCode, purchaseDateStr);
+      
+      // Get current NAV
+      const currentNAVData = await getLatestNAV(schemeCode);
+      
+      if (!purchaseNAVData || !currentNAVData) {
+        showError('Could not fetch NAV data. Please try again.');
+        setShowHistoricalPerformance(false);
+        return;
+      }
+      
+      const purchaseNAV = purchaseNAVData.nav;
+      const currentNAV = currentNAVData.nav;
+      const units = investmentAmount / purchaseNAV;
+      const currentValue = units * currentNAV;
+      const gainLoss = currentValue - investmentAmount;
+      const gainLossPercent = (gainLoss / investmentAmount) * 100;
+      
+      // Calculate CAGR
+      const purchaseDate = new Date(newPurchaseDate);
+      const today = new Date();
+      const years = (today.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
+      const cagr = years > 0 ? (Math.pow(currentValue / investmentAmount, 1 / years) - 1) * 100 : 0;
+      
+      setHistoricalPerformanceData({
+        investmentAmount,
+        purchaseDate: newPurchaseDate,
+        purchaseNAV,
+        currentNAV,
+        units,
+        currentValue,
+        gainLoss,
+        gainLossPercent,
+        cagr
+      });
+    } catch (error) {
+      console.error('Error calculating historical performance:', error);
+      showError('Failed to calculate performance. Please try again.');
+      setShowHistoricalPerformance(false);
+    } finally {
+      setIsLoadingHistorical(false);
+    }
+  }, [newSchemeCode, newInvestmentAmount, newPurchaseDate, newInvestmentType, warning, showError]);
+
+  // Load historical data for a fund (for chart view)
+  const handleLoadHistoricalData = useCallback(async (schemeCode: string) => {
+    if (historicalDataForScheme === schemeCode) {
+      // Close if already open
+      setHistoricalDataForScheme(null);
+      setHistoricalData([]);
+      return;
+    }
+
+    setIsLoadingHistorical(true);
+    setHistoricalDataForScheme(schemeCode);
+    
+    try {
+      const response = await getHistoricalNAV(schemeCode);
+      if (response && response.data && response.data.length > 0) {
+        // Process historical data - filter by start date and format for chart
+        const startDate = new Date(historicalStartDate);
+        const processedData = response.data
+          .filter((item: any) => {
+            const itemDate = new Date(item.date);
+            return itemDate >= startDate;
+          })
+          .map((item: any, index: number) => ({
+            date: item.date,
+            nav: parseFloat(item.nav),
+            index: index
+          }))
+          .reverse(); // Show oldest to newest
+        
+        setHistoricalData(processedData);
+      } else {
+        showError('No historical data available for this fund');
+        setHistoricalDataForScheme(null);
+      }
+    } catch (error) {
+      console.error('Error loading historical data:', error);
+      showError('Failed to load historical data. Please try again.');
+      setHistoricalDataForScheme(null);
+    } finally {
+      setIsLoadingHistorical(false);
+    }
+  }, [historicalStartDate, historicalDataForScheme, showError]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-violet-50/20">
       {/* Login Modal */}
@@ -678,6 +1012,51 @@ const MutualFunds: React.FC = () => {
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)} 
       />
+
+      {/* SIP Warning Modal for Historical Performance */}
+      {showSipWarningModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-orange-600" />
+                  Historical Performance - One-Time Only
+                </h3>
+                <button
+                  onClick={() => setShowSipWarningModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-600" />
+                </button>
+              </div>
+              
+              <p className="text-slate-700 mb-6">
+                Historical Performance calculation is only available for <strong>One-Time</strong> investments. 
+                For SIP investments, please use the "Add to Portfolio" feature which will create purchase records for each month.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setNewInvestmentType('onetime');
+                    setShowSipWarningModal(false);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                >
+                  Switch to One-Time
+                </button>
+                <button
+                  onClick={() => setShowSipWarningModal(false)}
+                  className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50">
@@ -906,39 +1285,71 @@ const MutualFunds: React.FC = () => {
           </div>
         )}
 
-        {/* Portfolio Summary Cards */}
-        {!isLoadingPortfolio && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 mt-6">
-              <div className={CARD_STYLE} style={CARD_SHADOW}>
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-slate-600 mb-1">Total Invested</h3>
-                  <p className="text-2xl font-bold text-slate-800">{formatCurrency(portfolioTotals.totalInvested)}</p>
+        {/* Portfolio Summary Cards - Only show if user has holdings */}
+        {!isLoadingPortfolio && currentUser && holdings.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 mt-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border-2 border-blue-200 shadow-lg">
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                <span className="text-blue-600">💰</span>
+                Total Invested
+              </h3>
+              <p className="text-3xl font-bold text-slate-800">{formatCurrency(portfolioTotals.totalInvested)}</p>
                 </div>
+            <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-5 border-2 border-purple-200 shadow-lg">
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                <span className="text-purple-600">📈</span>
+                Current Value
+              </h3>
+              <p className="text-3xl font-bold text-slate-800">{formatCurrency(portfolioTotals.totalCurrentValue)}</p>
               </div>
-              <div className={CARD_STYLE} style={CARD_SHADOW}>
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-slate-600 mb-1">Current Value</h3>
-                  <p className="text-2xl font-bold text-slate-800">{formatCurrency(portfolioTotals.totalCurrentValue)}</p>
-                </div>
-              </div>
-              <div className={CARD_STYLE} style={CARD_SHADOW}>
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-slate-600 mb-1">Total Gain/Loss</h3>
-                  <p className={`text-2xl font-bold ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(portfolioTotals.totalGainLoss)} ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{portfolioTotals.totalGainLossPercent.toFixed(2)}%)
+            <div className={`bg-gradient-to-br rounded-xl p-5 border-2 shadow-lg ${
+              portfolioTotals.totalGainLoss >= 0 
+                ? 'from-green-50 to-emerald-50 border-green-200' 
+                : 'from-red-50 to-rose-50 border-red-200'
+            }`}>
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                <span className={portfolioTotals.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {portfolioTotals.totalGainLoss >= 0 ? '📊' : '📉'}
+                </span>
+                Total Gain/Loss
+              </h3>
+              <p className={`text-3xl font-bold ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(portfolioTotals.totalGainLoss)}
+              </p>
+              <p className={`text-sm font-semibold mt-1 ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{portfolioTotals.totalGainLossPercent.toFixed(2)}%)
                   </p>
                 </div>
-              </div>
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-5 border-2 border-orange-200 shadow-lg">
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                <span className="text-orange-600">📊</span>
+                CAGR
+              </h3>
+              <p className={`text-3xl font-bold ${portfolioTotals.cagr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {portfolioTotals.cagr >= 0 ? '+' : ''}{portfolioTotals.cagr.toFixed(2)}%
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Compound Annual Growth Rate</p>
             </div>
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-5 border-2 border-indigo-200 shadow-lg">
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                <span className="text-indigo-600">📈</span>
+                XIRR
+              </h3>
+              <p className={`text-3xl font-bold ${portfolioTotals.xirr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {portfolioTotals.xirr >= 0 ? '+' : ''}{portfolioTotals.xirr.toFixed(2)}%
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Extended Internal Rate of Return</p>
+            </div>
+              </div>
+        )}
 
-        {/* Add Fund Form */}
+        {/* Add Fund Form / Portfolio Tracker */}
         <div className={CARD_STYLE} style={CARD_SHADOW}>
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Plus className="w-5 h-5" />
-                {showAddForm ? 'Add Mutual Fund to Portfolio' : 'Portfolio Tracker'}
+                <PieChart className="w-5 h-5 text-purple-600" />
+                {showAddForm ? 'Add Mutual Fund to Portfolio' : currentUser ? 'Portfolio Tracker' : 'Explore Mutual Funds'}
               </h2>
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
@@ -951,8 +1362,8 @@ const MutualFunds: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Plus className="w-4 h-4" />
-                    Add Fund
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showAddForm ? 'rotate-180' : ''}`} />
+                    {currentUser ? 'Add Fund' : 'Explore Funds'}
                   </>
                 )}
               </button>
@@ -995,14 +1406,26 @@ const MutualFunds: React.FC = () => {
                     {searchResults.length > 0 && (
                       <div className="mt-2 bg-white border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
                         {searchResults.map((result, index) => (
-                          <button
+                          <div
                             key={index}
+                            className="flex items-center justify-between px-4 py-2 hover:bg-purple-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                          >
+                            <button
                             onClick={() => handleSelectFund(result.schemeCode, result.schemeName)}
-                            className="w-full text-left px-4 py-2 hover:bg-purple-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                              className="flex-1 text-left"
                           >
                             <div className="font-semibold text-slate-800">{result.schemeName}</div>
                             <div className="text-xs text-slate-500">Code: {result.schemeCode}</div>
                           </button>
+                            <button
+                              onClick={() => handleLoadHistoricalData(result.schemeCode)}
+                              className="ml-2 px-3 py-1.5 text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg transition-all flex items-center gap-1.5"
+                              title="View Historical Performance"
+                            >
+                              <TrendingUp className="w-3 h-3" />
+                              <span className="hidden sm:inline">History</span>
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1038,26 +1461,64 @@ const MutualFunds: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">
-                      Investment Amount <span className="text-red-500">*</span>
-                      <HelpTooltip content="Total amount invested. Units will be calculated based on current NAV." />
+                      {newInvestmentType === 'sip' ? 'Monthly SIP Amount' : 'Investment Amount'} <span className="text-red-500">*</span>
+                      <HelpTooltip content={newInvestmentType === 'sip' ? 'Monthly SIP amount. Multiple purchase records will be created for each month.' : 'Total amount invested. Units will be calculated based on current NAV.'} />
                     </label>
+                    <div className="flex gap-2">
                     <input
                       type="text"
                       value={newInvestmentAmount}
                       onChange={(e) => setNewInvestmentAmount(e.target.value)}
                       placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
-                      className={INPUT_STYLE}
+                        className={`${INPUT_STYLE} flex-1`}
                     />
+                      <div className="flex gap-1 bg-white rounded-lg p-0.5 border border-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setNewInvestmentType('onetime')}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                            newInvestmentType === 'onetime'
+                              ? 'bg-purple-600 text-white'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          One Time
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewInvestmentType('sip')}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                            newInvestmentType === 'sip'
+                              ? 'bg-purple-600 text-white'
+                              : 'text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          SIP
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">
-                      Purchase Date <span className="text-red-500">*</span>
+                      {newInvestmentType === 'sip' ? 'SIP Start Date' : 'Purchase Date'} <span className="text-red-500">*</span>
                     </label>
                     <DatePicker
                       value={newPurchaseDate}
                       onChange={setNewPurchaseDate}
                     />
                   </div>
+                  {newInvestmentType === 'sip' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        SIP End Date <span className="text-red-500">*</span>
+                        <HelpTooltip content="Last date of SIP. Purchase records will be created for each month from start date to end date." />
+                      </label>
+                      <DatePicker
+                        value={newSipEndDate}
+                        onChange={setNewSipEndDate}
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 {/* Manual NAV Entry Option */}
@@ -1098,10 +1559,29 @@ const MutualFunds: React.FC = () => {
                     </div>
                   )}
                 </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleCalculateHistoricalPerformance}
+                    disabled={isLoadingHistorical || !newSchemeCode || !newInvestmentAmount || !newPurchaseDate || newInvestmentType === 'sip'}
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={newInvestmentType === 'sip' ? 'Historical Performance is only available for One-Time investments' : ''}
+                  >
+                    {isLoadingHistorical ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Calculating...
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp className="w-5 h-5" />
+                        Historical Performance
+                      </>
+                    )}
+                  </button>
                 <button
                   onClick={handleAddFund}
                   disabled={isLoadingNAV}
-                  className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isLoadingNAV ? (
                     <>
@@ -1115,24 +1595,238 @@ const MutualFunds: React.FC = () => {
                     </>
                   )}
                 </button>
+                </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Historical Performance Results */}
+        {showHistoricalPerformance && historicalPerformanceData && (
+          <div ref={historicalPerformanceRef} className={CARD_STYLE} style={CARD_SHADOW}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-indigo-600" />
+                  Historical Performance Analysis
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHistoricalPerformance(false);
+                    setHistoricalPerformanceData(null);
+                  }}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-slate-600">Fund:</span>
+                    <span className="font-semibold text-slate-800 ml-2">{newSchemeName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-600">Purchase Date:</span>
+                    <span className="font-semibold text-slate-800 ml-2">{formatDate(historicalPerformanceData.purchaseDate)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
+                  <p className="text-xs text-slate-600 mb-1">Investment Amount</p>
+                  <p className="text-2xl font-bold text-blue-700">{formatCurrency(historicalPerformanceData.investmentAmount)}</p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border-2 border-purple-200">
+                  <p className="text-xs text-slate-600 mb-1">Current Value</p>
+                  <p className="text-2xl font-bold text-purple-700">{formatCurrency(historicalPerformanceData.currentValue)}</p>
+                </div>
+                <div className={`bg-gradient-to-br rounded-xl p-4 border-2 ${
+                  historicalPerformanceData.gainLoss >= 0 
+                    ? 'from-green-50 to-emerald-50 border-green-200' 
+                    : 'from-red-50 to-rose-50 border-red-200'
+                }`}>
+                  <p className="text-xs text-slate-600 mb-1">Gain/Loss</p>
+                  <p className={`text-2xl font-bold ${historicalPerformanceData.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {formatCurrency(historicalPerformanceData.gainLoss)}
+                  </p>
+                  <p className={`text-sm font-semibold mt-1 ${historicalPerformanceData.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ({historicalPerformanceData.gainLoss >= 0 ? '+' : ''}{historicalPerformanceData.gainLossPercent.toFixed(2)}%)
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border-2 border-orange-200">
+                  <p className="text-xs text-slate-600 mb-1">CAGR</p>
+                  <p className={`text-2xl font-bold ${historicalPerformanceData.cagr >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {historicalPerformanceData.cagr >= 0 ? '+' : ''}{historicalPerformanceData.cagr.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <p className="text-xs text-slate-600 mb-1">NAV on Purchase Date</p>
+                  <p className="text-lg font-bold text-slate-800">{formatCurrency(historicalPerformanceData.purchaseNAV)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <p className="text-xs text-slate-600 mb-1">Current NAV</p>
+                  <p className="text-lg font-bold text-slate-800">{formatCurrency(historicalPerformanceData.currentNAV)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <p className="text-xs text-slate-600 mb-1">Units</p>
+                  <p className="text-lg font-bold text-slate-800">{historicalPerformanceData.units.toFixed(4)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Standalone Historical Data Viewer (for funds not in portfolio) */}
+        {historicalDataForScheme && !holdings.find(h => h.schemeCode === historicalDataForScheme) && (
+          <div className={CARD_STYLE} style={CARD_SHADOW}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-purple-600" />
+                  Historical Performance
+                </h3>
+                <button
+                  onClick={() => {
+                    setHistoricalDataForScheme(null);
+                    setHistoricalData([]);
+                  }}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="mb-4 flex items-center gap-2">
+                <label className="text-sm text-slate-700 font-semibold">From Date:</label>
+                <input
+                  type="date"
+                  value={historicalStartDate}
+                  onChange={(e) => {
+                    setHistoricalStartDate(e.target.value);
+                    // Reload data with new date
+                    if (historicalDataForScheme) {
+                      handleLoadHistoricalData(historicalDataForScheme);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+              
+              {isLoadingHistorical ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-600 mr-2" />
+                  <span className="text-slate-600">Loading historical data...</span>
+                </div>
+              ) : historicalData.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Performance Metrics */}
+                  {historicalData.length >= 2 && (() => {
+                    const firstNAV = historicalData[0].nav;
+                    const lastNAV = historicalData[historicalData.length - 1].nav;
+                    const totalReturn = ((lastNAV - firstNAV) / firstNAV) * 100;
+                    const years = (new Date(historicalData[historicalData.length - 1].date).getTime() - new Date(historicalData[0].date).getTime()) / (1000 * 60 * 60 * 24 * 365);
+                    const cagr = years > 0 ? (Math.pow(lastNAV / firstNAV, 1 / years) - 1) * 100 : 0;
+                    
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                          <p className="text-xs text-slate-600 mb-1">Starting NAV</p>
+                          <p className="text-lg font-bold text-slate-800">{formatCurrency(firstNAV)}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-4 border border-purple-200">
+                          <p className="text-xs text-slate-600 mb-1">Current NAV</p>
+                          <p className="text-lg font-bold text-slate-800">{formatCurrency(lastNAV)}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                          <p className="text-xs text-slate-600 mb-1">Total Return</p>
+                          <p className={`text-lg font-bold ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
+                          </p>
+                        </div>
+                        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-200">
+                          <p className="text-xs text-slate-600 mb-1">CAGR</p>
+                          <p className={`text-lg font-bold ${cagr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {cagr >= 0 ? '+' : ''}{cagr.toFixed(2)}%
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Chart */}
+                  <div className="bg-white rounded-lg p-4 border-2 border-purple-200 shadow-sm">
+                    <ResponsiveContainer width="100%" height={350}>
+                      <LineChart data={historicalData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#64748b"
+                          tick={{ fontSize: 12 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis 
+                          stroke="#64748b"
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => formatCurrency(value)}
+                        />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                          formatter={(value: number) => formatCurrency(value)}
+                          labelStyle={{ color: '#475569', fontWeight: 'bold' }}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="nav" 
+                          stroke="#8b5cf6" 
+                          strokeWidth={3}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                          name="NAV"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-slate-500">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                  <p>No historical data available for the selected period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Holdings List */}
         {holdings.length === 0 ? (
           <div className={CARD_STYLE} style={CARD_SHADOW}>
             <div className="p-12 text-center">
               <PieChart className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-slate-600 mb-2">No Mutual Funds in Portfolio</h3>
-              <p className="text-slate-500 mb-4">Add your first mutual fund to start tracking your investments</p>
+              <h3 className="text-xl font-bold text-slate-600 mb-2">
+                {currentUser ? 'No Mutual Funds in Portfolio' : 'Explore Mutual Funds'}
+              </h3>
+              <p className="text-slate-500 mb-4">
+                {currentUser 
+                  ? 'Add your first mutual fund to start tracking your investments' 
+                  : 'Search for funds, check historical performance, or add to your portfolio'}
+              </p>
               <button
                 onClick={() => setShowAddForm(true)}
                 className="px-6 py-3 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 inline-flex items-center gap-2"
               >
-                <Plus className="w-5 h-5" />
-                Add Your First Fund
+                <TrendingUp className="w-5 h-5" />
+                {currentUser ? 'Add Your First Fund' : 'Explore & Check Performance'}
               </button>
             </div>
           </div>
@@ -1164,6 +1858,23 @@ const MutualFunds: React.FC = () => {
                           <p className="text-lg font-bold text-slate-800">{formatCurrency(holding.currentNAV)}</p>
                         </div>
                         <button
+                          onClick={() => handleLoadHistoricalData(holding.schemeCode)}
+                          disabled={isLoadingHistorical}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                            historicalDataForScheme === holding.schemeCode
+                              ? 'bg-purple-600 text-white shadow-md'
+                              : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                          }`}
+                          title="View Historical Performance"
+                        >
+                          {isLoadingHistorical && historicalDataForScheme === holding.schemeCode ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <TrendingUp className="w-3 h-3" />
+                          )}
+                          <span className="hidden sm:inline">Historical</span>
+                        </button>
+                        <button
                           onClick={() => handleUpdateCurrentNAV(holding.id)}
                           disabled={refreshingHoldingIds.has(holding.id)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
@@ -1186,7 +1897,7 @@ const MutualFunds: React.FC = () => {
                     </div>
 
                     {/* Fund Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
                       <div className="bg-slate-50 rounded-lg p-3">
                         <p className="text-xs text-slate-600 mb-1">Total Invested</p>
                         <p className="text-sm font-bold text-slate-800">{formatCurrency(summary.totalInvested)}</p>
@@ -1207,16 +1918,136 @@ const MutualFunds: React.FC = () => {
                           {summary.gainLossPercent >= 0 ? '+' : ''}{summary.gainLossPercent.toFixed(2)}%
                         </p>
                       </div>
+                      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-200">
+                        <p className="text-xs text-slate-600 mb-1">CAGR</p>
+                        <p className={`text-sm font-bold ${summary.cagr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {summary.cagr >= 0 ? '+' : ''}{summary.cagr.toFixed(2)}%
+                        </p>
+                      </div>
+                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-3 border border-indigo-200">
+                        <p className="text-xs text-slate-600 mb-1">XIRR</p>
+                        <p className={`text-sm font-bold ${summary.xirr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {summary.xirr >= 0 ? '+' : ''}{summary.xirr.toFixed(2)}%
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Historical Data Display */}
+                    {historicalDataForScheme === holding.schemeCode && (
+                      <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border-2 border-purple-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <BarChart3 className="w-5 h-5 text-purple-600" />
+                            Historical Performance
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-600">From:</label>
+                            <input
+                              type="date"
+                              value={historicalStartDate}
+                              onChange={(e) => {
+                                setHistoricalStartDate(e.target.value);
+                                // Reload data with new date
+                                handleLoadHistoricalData(holding.schemeCode);
+                              }}
+                              className="px-2 py-1 text-xs border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            />
+                          </div>
+                        </div>
+                        
+                        {isLoadingHistorical ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin text-purple-600 mr-2" />
+                            <span className="text-slate-600">Loading historical data...</span>
+                          </div>
+                        ) : historicalData.length > 0 ? (
+                          <div className="space-y-4">
+                            {/* Performance Metrics */}
+                            {historicalData.length >= 2 && (() => {
+                              const firstNAV = historicalData[0].nav;
+                              const lastNAV = historicalData[historicalData.length - 1].nav;
+                              const totalReturn = ((lastNAV - firstNAV) / firstNAV) * 100;
+                              const years = (new Date(historicalData[historicalData.length - 1].date).getTime() - new Date(historicalData[0].date).getTime()) / (1000 * 60 * 60 * 24 * 365);
+                              const cagr = years > 0 ? (Math.pow(lastNAV / firstNAV, 1 / years) - 1) * 100 : 0;
+                              
+                              return (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                  <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                    <p className="text-xs text-slate-600 mb-1">Starting NAV</p>
+                                    <p className="text-sm font-bold text-slate-800">{formatCurrency(firstNAV)}</p>
+                                  </div>
+                                  <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                    <p className="text-xs text-slate-600 mb-1">Current NAV</p>
+                                    <p className="text-sm font-bold text-slate-800">{formatCurrency(lastNAV)}</p>
+                                  </div>
+                                  <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                    <p className="text-xs text-slate-600 mb-1">Total Return</p>
+                                    <p className={`text-sm font-bold ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
+                                    </p>
+                                  </div>
+                                  <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                    <p className="text-xs text-slate-600 mb-1">CAGR</p>
+                                    <p className={`text-sm font-bold ${cagr >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {cagr >= 0 ? '+' : ''}{cagr.toFixed(2)}%
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            
+                            {/* Chart */}
+                            <div className="bg-white rounded-lg p-4 border border-purple-100">
+                              <ResponsiveContainer width="100%" height={300}>
+                                <LineChart data={historicalData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                  <XAxis 
+                                    dataKey="date" 
+                                    stroke="#64748b"
+                                    tick={{ fontSize: 12 }}
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={80}
+                                  />
+                                  <YAxis 
+                                    stroke="#64748b"
+                                    tick={{ fontSize: 12 }}
+                                    tickFormatter={(value) => formatCurrency(value)}
+                                  />
+                                  <Tooltip 
+                                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                                    formatter={(value: number) => formatCurrency(value)}
+                                    labelStyle={{ color: '#475569', fontWeight: 'bold' }}
+                                  />
+                                  <Legend />
+                                  <Line 
+                                    type="monotone" 
+                                    dataKey="nav" 
+                                    stroke="#8b5cf6" 
+                                    strokeWidth={2}
+                                    dot={{ r: 2 }}
+                                    name="NAV"
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-slate-500">
+                            No historical data available for the selected period.
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Purchases List */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3">
-                          <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                            Purchases ({holding.purchases.length})
-                            <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
-                          </h4>
+                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          Purchases ({holding.purchases.length})
+                          <HelpTooltip content="Multiple purchases (SIP) of the same fund are automatically combined to calculate your average NAV and total units." />
+                        </h4>
                           {holding.purchases.length > 0 && (
                             <button
                               onClick={() => {
@@ -1354,8 +2185,8 @@ const MutualFunds: React.FC = () => {
                       )}
                       
                       {expandedPurchases.has(holding.id) && (
-                        <div className="space-y-2">
-                          {holding.purchases.map((purchase) => {
+                      <div className="space-y-2">
+                        {holding.purchases.map((purchase) => {
                           const isEditingPurchase = editingPurchaseId === purchase.id;
                           const purchaseValue = purchase.investmentAmount;
                           const currentValue = holding.currentNAV * purchase.quantity;
@@ -1462,16 +2293,14 @@ const MutualFunds: React.FC = () => {
                             </div>
                           );
                         })}
-                        </div>
-                      )}
+                                    </div>
+                                  )}
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-          </>
         )}
       </main>
     </div>

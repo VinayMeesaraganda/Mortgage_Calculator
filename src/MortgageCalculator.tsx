@@ -1349,42 +1349,42 @@ const MortgageCalculator: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2">
               {/* Toggle - Centered on mobile, left on desktop */}
               <div className="flex justify-center sm:justify-start flex-1">
-                <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
-                  <button
-                    onClick={() => setPropertyType('primary')}
-                    className={`
-                      flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                      ${propertyType === 'primary' 
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
-                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                      }
-                    `}
-                  >
-                    <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
-                    <span>Primary</span>
-                  </button>
-                  <button
-                    onClick={() => setPropertyType('investment')}
-                    className={`
-                      flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
-                      ${propertyType === 'investment' 
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
-                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                      }
-                    `}
-                  >
-                    <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
-                    <span>Investment</span>
-                  </button>
-                </div>
+            <div className="bg-white rounded-lg shadow-md p-0.5 flex gap-0.5 border border-slate-200">
+              <button
+                onClick={() => setPropertyType('primary')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'primary' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base" aria-label="Home icon">🏠</span>
+                <span>Primary</span>
+              </button>
+              <button
+                onClick={() => setPropertyType('investment')}
+                className={`
+                  flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md font-semibold text-xs sm:text-sm transition-all duration-300
+                  ${propertyType === 'investment' 
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                  }
+                `}
+              >
+                <span className="text-sm sm:text-base" aria-label="Building icon">🏢</span>
+                <span>Investment</span>
+              </button>
               </div>
-              
+            </div>
+            
               {/* Currency Selector - Below toggle on mobile, right side on desktop */}
               <div className="flex justify-center sm:justify-end">
-                <CurrencySelector 
-                  selectedCurrency={selectedCurrency}
-                  onCurrencyChange={setSelectedCurrency}
-                />
+              <CurrencySelector 
+                selectedCurrency={selectedCurrency}
+                onCurrencyChange={setSelectedCurrency}
+              />
               </div>
             </div>
           </div>
@@ -1944,30 +1944,30 @@ const MortgageCalculator: React.FC = () => {
                   )}
 
                   {/* Save/Update Mortgage Button - Always visible, prompts login if not signed in */}
-                  <div className="mt-4 pt-3 border-t border-slate-200">
-                    <button
-                      onClick={() => {
+                    <div className="mt-4 pt-3 border-t border-slate-200">
+                      <button
+                        onClick={() => {
                         if (!currentUser) {
                           setShowLoginModal(true);
                           return;
                         }
-                        if (selectedMortgageId) {
-                          // If a mortgage is selected, pre-fill the name
-                          const selectedMortgage = savedMortgages.find(m => m.id === selectedMortgageId);
-                          if (selectedMortgage) {
-                            setNewMortgageName(selectedMortgage.name);
+                          if (selectedMortgageId) {
+                            // If a mortgage is selected, pre-fill the name
+                            const selectedMortgage = savedMortgages.find(m => m.id === selectedMortgageId);
+                            if (selectedMortgage) {
+                              setNewMortgageName(selectedMortgage.name);
+                            }
+                          } else {
+                            setNewMortgageName('');
                           }
-                        } else {
-                          setNewMortgageName('');
-                        }
-                        setShowSaveMortgageModal(true);
-                      }}
-                      className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
-                    >
-                      <Home className="w-4 h-4" />
+                          setShowSaveMortgageModal(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <Home className="w-4 h-4" />
                       {currentUser && selectedMortgageId ? 'Update Tracker' : 'Save & Track This Mortgage'}
-                    </button>
-                  </div>
+                      </button>
+                    </div>
                 </div>
               </div>
             </div>
@@ -2691,12 +2691,12 @@ const MortgageCalculator: React.FC = () => {
                     <div className="bg-white rounded-xl shadow-xl border-2 border-blue-100 p-6">
                       <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                          <Home className="w-6 h-6 text-blue-600" />
-                          Mortgage Tracker
+                        <Home className="w-6 h-6 text-blue-600" />
+                        Mortgage Tracker
                           <span className="text-sm font-normal text-slate-600">
                             ({savedMortgages.length} {savedMortgages.length === 1 ? 'mortgage' : 'mortgages'})
                           </span>
-                        </h2>
+                      </h2>
                         {savedMortgages.length > 1 && (
                           <button
                             onClick={() => setTrackerExpanded(!trackerExpanded)}

@@ -25,7 +25,8 @@ export interface MutualFundHoldingSummary {
   currentValue: number;
   gainLoss: number;
   gainLossPercent: number;
-  xirr?: number; // Extended Internal Rate of Return
+  cagr: number; // Compound Annual Growth Rate
+  xirr: number; // Extended Internal Rate of Return
 }
 
 export type MutualFundCategory = 'large-cap' | 'mid-cap' | 'small-cap' | 'flexi-cap';
