@@ -2854,7 +2854,7 @@ const MortgageCalculator: React.FC = () => {
                               <div className="bg-white rounded-lg p-3 border border-slate-200">
                                 <div className="text-xs text-slate-600 mb-1">Paid Till Now</div>
                                 <div className="text-sm font-semibold text-green-600 mb-1">
-                                  Principal: {formatCurrency(principalPaid, mortgage.currency)}
+                                  Principal: {formatCurrency(principalPaidFromPayments, mortgage.currency)}
                                 </div>
                                 <div className="text-xs text-slate-400 my-1">---</div>
                                 <div className="text-sm font-semibold text-green-600">
@@ -3272,7 +3272,7 @@ const MortgageCalculator: React.FC = () => {
                           <div className="bg-white rounded-lg p-3 border border-slate-200">
                             <div className="text-xs text-slate-600 mb-1">Paid Till Now</div>
                             <div className="text-sm font-semibold text-green-600 mb-1">
-                              Principal: {formatCurrency(principalPaid, mortgage.currency)}
+                              Principal: {formatCurrency(principalPaidFromPayments, mortgage.currency)}
                             </div>
                             <div className="text-xs text-slate-400 my-1">---</div>
                             <div className="text-sm font-semibold text-green-600">
