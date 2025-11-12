@@ -1943,29 +1943,31 @@ const MortgageCalculator: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Save/Update Mortgage Button - Only show when logged in */}
-                  {currentUser && (
-                    <div className="mt-4 pt-3 border-t border-slate-200">
-                      <button
-                        onClick={() => {
-                          if (selectedMortgageId) {
-                            // If a mortgage is selected, pre-fill the name
-                            const selectedMortgage = savedMortgages.find(m => m.id === selectedMortgageId);
-                            if (selectedMortgage) {
-                              setNewMortgageName(selectedMortgage.name);
-                            }
-                          } else {
-                            setNewMortgageName('');
+                  {/* Save/Update Mortgage Button - Always visible, prompts login if not signed in */}
+                  <div className="mt-4 pt-3 border-t border-slate-200">
+                    <button
+                      onClick={() => {
+                        if (!currentUser) {
+                          setShowLoginModal(true);
+                          return;
+                        }
+                        if (selectedMortgageId) {
+                          // If a mortgage is selected, pre-fill the name
+                          const selectedMortgage = savedMortgages.find(m => m.id === selectedMortgageId);
+                          if (selectedMortgage) {
+                            setNewMortgageName(selectedMortgage.name);
                           }
-                          setShowSaveMortgageModal(true);
-                        }}
-                        className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
-                      >
-                        <Home className="w-4 h-4" />
-                        {selectedMortgageId ? 'Update Tracker' : 'Save & Track This Mortgage'}
-                      </button>
-                    </div>
-                  )}
+                        } else {
+                          setNewMortgageName('');
+                        }
+                        setShowSaveMortgageModal(true);
+                      }}
+                      className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <Home className="w-4 h-4" />
+                      {currentUser && selectedMortgageId ? 'Update Tracker' : 'Save & Track This Mortgage'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

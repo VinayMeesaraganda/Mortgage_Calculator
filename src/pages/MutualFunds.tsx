@@ -9,6 +9,7 @@ import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
 import { HelpTooltip } from '../components/HelpTooltip';
 import { DatePicker } from '../components/DatePicker';
 import CurrencySelector from '../components/CurrencySelector';
+import LoginModal from '../components/LoginModal';
 import { searchMutualFunds, getLatestNAV, getNAVForDate } from '../utils/mfapi';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
@@ -31,6 +32,8 @@ const MutualFunds: React.FC = () => {
   const [sipAmount, setSipAmount] = useState('10000');
   const [sipYears, setSipYears] = useState('10');
   const [sipReturns, setSipReturns] = useState('12');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [sipCalculatorExpanded, setSipCalculatorExpanded] = useState(true);
   
   // Firestore sync state
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
@@ -278,6 +281,12 @@ const MutualFunds: React.FC = () => {
 
   // Add new mutual fund or purchase to existing fund
   const handleAddFund = useCallback(async () => {
+    // Check if user is logged in
+    if (!currentUser) {
+      setShowLoginModal(true);
+      return;
+    }
+
     const schemeCode = newSchemeCode.trim();
     const schemeName = newSchemeName.trim();
     const investmentAmount = parseFloat(newInvestmentAmount.replace(/[^0-9.]/g, ''));
@@ -664,6 +673,12 @@ const MutualFunds: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-violet-50/20">
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
+
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -694,14 +709,24 @@ const MutualFunds: React.FC = () => {
         {/* SIP/Lumpsum Calculator */}
         <div className={CARD_STYLE} style={CARD_SHADOW}>
           <div className="p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              Mutual Fund Calculator
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Mutual Fund Calculator
+              </h2>
+              <button
+                onClick={() => setSipCalculatorExpanded(!sipCalculatorExpanded)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+              >
+                {sipCalculatorExpanded ? 'Hide' : 'Show'}
+                <ChevronDown className={`w-4 h-4 transition-transform ${sipCalculatorExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {sipCalculatorExpanded && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Input Section */}
               <div className="space-y-4">
                 {/* SIP/Lumpsum Toggle */}
@@ -800,6 +825,7 @@ const MutualFunds: React.FC = () => {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
 
@@ -1235,6 +1261,98 @@ const MutualFunds: React.FC = () => {
                           {inlineAddPurchaseHoldingId === holding.id ? 'Cancel' : 'Add Purchase'}
                         </button>
                       </div>
+                      
+                      {/* Inline Add Purchase Form - Above purchases list */}
+                      {inlineAddPurchaseHoldingId === holding.id && (
+                        <div className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 mb-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                            <div>
+                              <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                Investment Amount <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={inlineInvestmentAmount}
+                                onChange={(e) => setInlineInvestmentAmount(e.target.value)}
+                                placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                Purchase Date <span className="text-red-500">*</span>
+                              </label>
+                              <DatePicker
+                                value={inlinePurchaseDate}
+                                onChange={setInlinePurchaseDate}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-700 font-semibold mb-1 block">
+                                NAV at Purchase <span className="text-red-500">*</span>
+                              </label>
+                              <div className="space-y-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={inlineUseManualNAV}
+                                    onChange={(e) => {
+                                      setInlineUseManualNAV(e.target.checked);
+                                      if (!e.target.checked) setInlineManualNAV('');
+                                    }}
+                                    className="w-3 h-3 text-purple-600 border-slate-300 rounded"
+                                  />
+                                  <span className="text-xs text-slate-600">Manual NAV</span>
+                                </label>
+                                {inlineUseManualNAV && (
+                                  <input
+                                    type="text"
+                                    value={inlineManualNAV}
+                                    onChange={(e) => setInlineManualNAV(e.target.value)}
+                                    placeholder="Enter NAV"
+                                    className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                  />
+                                )}
+                                {!inlineUseManualNAV && (
+                                  <p className="text-xs text-slate-500">Auto-fetch from MFAPI</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => {
+                                setInlineAddPurchaseHoldingId(null);
+                                setInlineInvestmentAmount('');
+                                setInlineUseManualNAV(false);
+                                setInlineManualNAV('');
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded-lg transition-colors flex items-center gap-1"
+                            >
+                              <X className="w-3 h-3" />
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleAddPurchaseInline(holding.id)}
+                              disabled={isLoadingNAV}
+                              className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {isLoadingNAV ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Adding...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  Add Purchase
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
                       {expandedPurchases.has(holding.id) && (
                         <div className="space-y-2">
                           {holding.purchases.map((purchase) => {
@@ -1344,100 +1462,6 @@ const MutualFunds: React.FC = () => {
                             </div>
                           );
                         })}
-                        
-                        {/* Inline Add Purchase Form */}
-                        {inlineAddPurchaseHoldingId === holding.id && (
-                          <div className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 mt-2">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-                              <div>
-                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
-                                  Investment Amount <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={inlineInvestmentAmount}
-                                  onChange={(e) => setInlineInvestmentAmount(e.target.value)}
-                                  placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
-                                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
-                                  Purchase Date <span className="text-red-500">*</span>
-                                </label>
-                                <DatePicker
-                                  value={inlinePurchaseDate}
-                                  onChange={setInlinePurchaseDate}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-xs text-slate-700 font-semibold mb-1 block">
-                                  NAV at Purchase <span className="text-red-500">*</span>
-                                </label>
-                                <div className="space-y-1">
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={inlineUseManualNAV}
-                                      onChange={(e) => {
-                                        setInlineUseManualNAV(e.target.checked);
-                                        if (!e.target.checked) {
-                                          setInlineManualNAV('');
-                                        }
-                                      }}
-                                      className="w-3 h-3 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
-                                    />
-                                    <span className="text-xs text-slate-600">Enter manually</span>
-                                  </label>
-                                  {inlineUseManualNAV ? (
-                                    <input
-                                      type="text"
-                                      value={inlineManualNAV}
-                                      onChange={(e) => setInlineManualNAV(e.target.value)}
-                                      placeholder="e.g., 45.25"
-                                      className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                    />
-                                  ) : (
-                                    <div className="px-2 py-1.5 bg-slate-100 rounded text-xs text-slate-500">
-                                      Will fetch from API
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => {
-                                  setInlineAddPurchaseHoldingId(null);
-                                  setInlineInvestmentAmount('');
-                                  setInlineUseManualNAV(false);
-                                  setInlineManualNAV('');
-                                }}
-                                className="px-3 py-1.5 text-xs font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded-lg transition-colors flex items-center gap-1"
-                              >
-                                <X className="w-3 h-3" />
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleAddPurchaseInline(holding.id)}
-                                disabled={isLoadingNAV}
-                                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
-                              >
-                                {isLoadingNAV ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                    Adding...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-3 h-3" />
-                                    Add Purchase
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
                         </div>
                       )}
                     </div>
