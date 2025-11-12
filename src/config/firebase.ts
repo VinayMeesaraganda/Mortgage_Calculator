@@ -5,14 +5,36 @@ import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
 // Firebase configuration
+// Note: Firebase API keys are public by design and safe to expose in client-side code.
+// Security is enforced through Firestore Security Rules, not API keys.
+// 
+// REQUIRED: Set these as environment variables:
+// - Vercel: Settings → Environment Variables → Add each VITE_FIREBASE_* variable
+// - Local: Create a .env file with these variables (see .env.example)
+//
+// Environment variables are REQUIRED - no fallback values for security best practices.
+
+function getEnvVar(name: string): string {
+  const value = import.meta.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}\n` +
+      `Please set this in:\n` +
+      `- Vercel: Settings → Environment Variables\n` +
+      `- Local: Create a .env file with ${name}=your-value`
+    );
+  }
+  return value;
+}
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA8yemMWoFUOfte_T8-hLMcnj9A2aOqMNc",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "personal-fianance-5b5ea.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "personal-fianance-5b5ea",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "personal-fianance-5b5ea.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "432970825901",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:432970825901:web:8159ad2b3b9b6f3cb3c624",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-Q8LPB2G3HY"
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY'),
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID'),
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: getEnvVar('VITE_FIREBASE_APP_ID'),
+  measurementId: getEnvVar('VITE_FIREBASE_MEASUREMENT_ID')
 };
 
 // Initialize Firebase

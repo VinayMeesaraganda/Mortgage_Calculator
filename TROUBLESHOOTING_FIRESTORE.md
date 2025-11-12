@@ -10,7 +10,7 @@ If you're seeing "Failed to save portfolio" errors, follow these steps to diagno
 
 **Solution**:
 1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project: **personal-fianance-5b5ea**
+2. Select your project: **your-project-name**
 3. Navigate to **Firestore Database** > **Rules** tab
 4. Make sure you have the following rule for the `mutualFunds` collection:
 
@@ -30,7 +30,7 @@ match /mutualFunds/{userId} {
 
 **Solution**:
 1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project: **personal-fianance-5b5ea**
+2. Select your project: **your-project-name**
 3. Navigate to **Firestore Database**
 4. If you see "Create database", click it and:
    - Choose **Start in test mode** (for development)
