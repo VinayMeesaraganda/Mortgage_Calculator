@@ -251,7 +251,7 @@ const StockInvestments: React.FC = () => {
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />
-                    Add Stock
+                    {addingPurchaseToHoldingId ? 'Add Purchase' : 'Add Stock'}
                   </>
                 )}
               </button>
