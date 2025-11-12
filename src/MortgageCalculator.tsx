@@ -27,7 +27,7 @@ import { useMortgageCalculations } from './hooks/useMortgageCalculations';
 
 // Import components
 import { HelpTooltip } from './components/HelpTooltip';
-import { MonthYearPicker } from './components/MonthYearPicker';
+import { DatePicker } from './components/DatePicker';
 import { AmortizationTable } from './components/AmortizationTable';
 import SEOContent from './components/SEOContent';
 import EmailCaptureModal from './components/EmailCaptureModal';
@@ -49,10 +49,16 @@ const MortgageCalculator: React.FC = () => {
   const tenureInput = useNumberInput(30, 30, 'tenure', (val) => Math.floor(val));
   const extraPaymentAmountInput = useNumberInput(0, 0, 'extraPaymentAmount');
   
-  const [startDate, setStartDate] = useState('2025-01');
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
   const [paymentType, setPaymentType] = useState<PaymentType>('monthly');
   const [extraPaymentEnabled, setExtraPaymentEnabled] = useState(false);
-  const [extraPaymentStartDate, setExtraPaymentStartDate] = useState('2025-01');
+  const [extraPaymentStartDate, setExtraPaymentStartDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
   const [extraPaymentFrequency, setExtraPaymentFrequency] = useState('monthly');
   
   // Multiple one-time payments
@@ -80,7 +86,7 @@ const MortgageCalculator: React.FC = () => {
   const [refinanceData, setRefinanceData] = useState({
     remainingBalance: 280000,
     currentRate: 7.5,
-    currentPayoffDate: '', // Projected payoff date from mortgage statement (YYYY-MM format)
+    currentPayoffDate: '', // Projected payoff date from mortgage statement (YYYY-MM-DD format)
     currentExtraPayment: 0, // Additional extra payment going forward
     newRate: 6.0,
     closingCosts: 3500,
@@ -303,8 +309,11 @@ const MortgageCalculator: React.FC = () => {
     let currentPayment = paymentAmount; // Default to calculated
     
     if (refinanceData.currentPayoffDate) {
-      const [year, month] = refinanceData.currentPayoffDate.split('-').map(Number);
-      const payoffDate = new Date(year, month - 1, 1);
+      const dateParts = refinanceData.currentPayoffDate.split('-');
+      const year = parseInt(dateParts[0]);
+      const month = parseInt(dateParts[1]);
+      const day = dateParts.length > 2 ? parseInt(dateParts[2]) : 1;
+      const payoffDate = new Date(year, month - 1, day);
       const today = new Date();
       const monthsDiff = (payoffDate.getFullYear() - today.getFullYear()) * 12 + 
                         (payoffDate.getMonth() - today.getMonth());
@@ -950,7 +959,7 @@ const MortgageCalculator: React.FC = () => {
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider" style={{ color: '#334155' }}>
                       Start Date
                     </label>
-                    <MonthYearPicker
+                    <DatePicker
                       value={startDate}
                       onChange={setStartDate}
                       className={INPUT_STYLE}
@@ -978,7 +987,7 @@ const MortgageCalculator: React.FC = () => {
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Start Date
                       </label>
-                      <MonthYearPicker
+                      <DatePicker
                         value={extraPaymentStartDate}
                         onChange={setExtraPaymentStartDate}
                         disabled={!extraPaymentEnabled}
@@ -1044,7 +1053,7 @@ const MortgageCalculator: React.FC = () => {
                             <label className="block text-xs font-medium text-gray-600 mb-1">
                               Date
                             </label>
-                            <MonthYearPicker
+                            <DatePicker
                               value={payment.date}
                               onChange={(newDate) => {
                                 const updated = [...oneTimePayments];
@@ -2756,15 +2765,18 @@ const MortgageCalculator: React.FC = () => {
                         Current Projected Payoff Date
                         <span className="text-orange-600 ml-1">*</span>
                       </label>
-                      <MonthYearPicker
+                      <DatePicker
                         value={refinanceData.currentPayoffDate}
                         onChange={(date) => setRefinanceData({ ...refinanceData, currentPayoffDate: date })}
                       />
                       <p className="text-[10px] text-slate-500 mt-1">
                         📋 Check your mortgage statement - when will it be paid off?
                         {refinanceData.currentPayoffDate && (() => {
-                          const [year, month] = refinanceData.currentPayoffDate.split('-').map(Number);
-                          const payoffDate = new Date(year, month - 1, 1);
+                          const dateParts = refinanceData.currentPayoffDate.split('-');
+                          const year = parseInt(dateParts[0]);
+                          const month = parseInt(dateParts[1]);
+                          const day = dateParts.length > 2 ? parseInt(dateParts[2]) : 1;
+                          const payoffDate = new Date(year, month - 1, day);
                           const today = new Date();
                           const months = Math.max(0, (payoffDate.getFullYear() - today.getFullYear()) * 12 + 
                                         (payoffDate.getMonth() - today.getMonth()));

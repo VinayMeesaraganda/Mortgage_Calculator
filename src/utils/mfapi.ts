@@ -78,8 +78,10 @@ export async function getNAVForDate(schemeCode: string, targetDate: string): Pro
       return null;
     }
 
-    // Parse target date (format: YYYY-MM)
-    const [targetYear, targetMonth] = targetDate.split('-').map(Number);
+    // Parse target date (format: YYYY-MM-DD or YYYY-MM)
+    const dateParts = targetDate.split('-');
+    const targetYear = parseInt(dateParts[0]);
+    const targetMonth = parseInt(dateParts[1]);
     const targetMonthStart = new Date(targetYear, targetMonth - 1, 1);
 
     // First, try to find NAV within the target month (preferred)

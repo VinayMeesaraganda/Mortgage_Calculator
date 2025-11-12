@@ -2,7 +2,7 @@
 
 export interface MutualFundPurchase {
   id: string;
-  purchaseDate: string; // YYYY-MM format
+  purchaseDate: string; // YYYY-MM-DD format
   purchasePrice: number; // NAV at purchase
   quantity: number; // Number of units
   investmentAmount: number; // Total amount invested

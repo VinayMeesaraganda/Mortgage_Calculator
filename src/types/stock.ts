@@ -2,7 +2,7 @@
 
 export interface StockPurchase {
   id: string;
-  purchaseDate: string; // YYYY-MM format
+  purchaseDate: string; // YYYY-MM-DD format
   purchasePrice: number;
   quantity: number;
 }

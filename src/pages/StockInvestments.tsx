@@ -7,7 +7,7 @@ import { formatCurrency, setGlobalCurrency } from '../utils/formatting';
 import { CURRENCY_DATA } from '../utils/currency';
 import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
 import { HelpTooltip } from '../components/HelpTooltip';
-import { MonthYearPicker } from '../components/MonthYearPicker';
+import { DatePicker } from '../components/DatePicker';
 import CurrencySelector from '../components/CurrencySelector';
 
 const StockInvestments: React.FC = () => {
@@ -23,7 +23,7 @@ const StockInvestments: React.FC = () => {
   const [newPurchaseQuantity, setNewPurchaseQuantity] = useState('');
   const [newPurchaseDate, setNewPurchaseDate] = useState(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -315,7 +315,7 @@ const StockInvestments: React.FC = () => {
                     <label className="block text-sm font-semibold text-slate-700 mb-1">
                       Purchase Date <span className="text-red-500">*</span>
                     </label>
-                    <MonthYearPicker
+                    <DatePicker
                       value={newPurchaseDate}
                       onChange={setNewPurchaseDate}
                     />
@@ -495,7 +495,7 @@ const StockInvestments: React.FC = () => {
                                   </div>
                                   <div>
                                     <label className="text-xs text-slate-600">Date</label>
-                                    <MonthYearPicker
+                                    <DatePicker
                                       value={purchase.purchaseDate}
                                       onChange={(date) => handleUpdatePurchase(holding.id, purchase.id, { purchaseDate: date })}
                                     />
