@@ -108,20 +108,23 @@ const Home: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={() => setShowLoginModal(true)}
-                    className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Login</span>
-                  </button>
-                  <button
-                    onClick={() => setShowLoginModal(true)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Sign Up</span>
-                  </button>
+                  {/* Desktop buttons - hidden on mobile */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    <button
+                      onClick={() => setShowLoginModal(true)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Login</span>
+                    </button>
+                    <button
+                      onClick={() => setShowLoginModal(true)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Sign Up</span>
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -144,14 +147,33 @@ const Home: React.FC = () => {
             investments, insurance, and savings. Track your portfolio, calculate returns, and plan your financial future. 
             All tools are <span className="font-semibold text-blue-600">free to use</span> with no signup required.
             {!currentUser && (
-              <span className="block mt-2 text-sm">
-                <button 
-                  onClick={() => setShowLoginModal(true)}
-                  className="text-blue-600 hover:text-blue-700 font-semibold underline"
-                >
-                  Sign up
-                </button> to save and track your financial data across devices.
-              </span>
+              <>
+                <span className="block mt-2 text-sm">
+                  <button 
+                    onClick={() => setShowLoginModal(true)}
+                    className="text-blue-600 hover:text-blue-700 font-semibold underline"
+                  >
+                    Sign up
+                  </button> to save and track your financial data across devices.
+                </span>
+                {/* Mobile login/signup buttons - shown only on mobile */}
+                <div className="flex sm:hidden items-center justify-center gap-3 mt-4">
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Login</span>
+                  </button>
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Sign Up</span>
+                  </button>
+                </div>
+              </>
             )}
           </p>
         </div>
