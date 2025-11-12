@@ -516,6 +516,7 @@ const MutualFunds: React.FC = () => {
       const results = await Promise.all(refreshPromises);
       
       // Update holdings with new NAVs
+      lastLocalChangeRef.current = Date.now(); // Track local change
       setHoldings(prevHoldings => prevHoldings.map(holding => {
         const result = results.find(r => r?.holdingId === holding.id);
         if (result) {
