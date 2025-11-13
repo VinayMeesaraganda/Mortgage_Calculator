@@ -1,60 +1,74 @@
-// Mortgage calculation functions
+// Mortgage calculation functions - Complete rewrite for accuracy
 
 import type { ScheduleItem, OneTimePayment, MortgageCalculation } from '../types/mortgage';
 
-// Extract shared extra payment logic to eliminate duplication
-export const applyExtraPayments = (
-  currentDate: Date,
-  balance: number,
-  principalPayment: number,
-  extraPrincipal: number,
-  extraPaymentEnabled: boolean,
-  extraPaymentAmount: number,
-  extraStartDate: Date | null,
-  extraPaymentFrequency: string,
-  extraPaymentMade: { value: boolean },
-  oneTimePayments: Array<OneTimePayment>,
-  appliedOneTimePayments: Set<string>
+/**
+ * Calculate the standard monthly payment using the loan payment formula
+ * Formula: M = P[r(1 + r)^n]/[(1 + r)^n - 1]
+ * Where: P = principal, r = monthly rate, n = number of payments
+ */
+const calculateStandardMonthlyPayment = (
+  principal: number,
+  annualRate: number,
+  years: number
 ): number => {
-  let totalExtra = extraPrincipal;
+  const monthlyRate = annualRate / 12;
+  const totalPayments = years * 12;
   
-  // Apply recurring extra payments
-  if (extraPaymentEnabled && extraPaymentAmount > 0 && balance > 0.01) {
-    const currentDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-    const extraStartDateStr = extraStartDate ? `${extraStartDate.getFullYear()}-${String(extraStartDate.getMonth() + 1).padStart(2, '0')}` : '';
-    
-    if (!extraStartDate || currentDateStr >= extraStartDateStr || currentDate >= extraStartDate) {
-      if (extraPaymentFrequency === 'one-time' && !extraPaymentMade.value) {
-        totalExtra = Math.min(extraPaymentAmount, balance - principalPayment);
-        extraPaymentMade.value = true;
-      } else if (extraPaymentFrequency === 'monthly' || extraPaymentFrequency === 'biweekly') {
-        totalExtra = Math.min(extraPaymentAmount, balance - principalPayment);
-      }
-    }
-  }
+  if (monthlyRate === 0) return principal / totalPayments;
   
-  // Apply multiple one-time payments
-  const currentDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-  oneTimePayments.forEach(payment => {
-    if (payment.date === currentDateStr && !appliedOneTimePayments.has(payment.id) && balance > 0.01) {
-      const additionalPayment = Math.min(payment.amount, balance - principalPayment - totalExtra);
-      totalExtra += additionalPayment;
-      appliedOneTimePayments.add(payment.id);
-    }
-  });
-  
-  // Ensure we don't overpay
-  if (principalPayment + totalExtra > balance) {
-    totalExtra = Math.max(0, balance - principalPayment);
-  }
-  
-  return totalExtra;
+  return principal * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) / 
+         (Math.pow(1 + monthlyRate, totalPayments) - 1);
 };
 
+/**
+ * Parse date string (YYYY-MM) and return a Date object
+ */
+const parseDate = (dateStr: string): Date => {
+  const [year, month] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+};
+
+/**
+ * Format date as YYYY-MM
+ */
+const formatDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+/**
+ * Check if a payment date should receive an extra payment
+ */
+const shouldApplyExtraPayment = (
+  currentDate: Date,
+  extraStartDate: Date | null,
+  extraPaymentFrequency: string,
+  extraPaymentMade: { value: boolean }
+): boolean => {
+  if (!extraStartDate) return false;
+  if (currentDate < extraStartDate) return false;
+  
+  if (extraPaymentFrequency === 'one-time') {
+    if (!extraPaymentMade.value) {
+      extraPaymentMade.value = true;
+      return true;
+    }
+    return false;
+  }
+  
+  // For monthly and biweekly, always apply after start date
+  return true;
+};
+
+/**
+ * Calculate monthly amortization schedule with extra payments
+ */
 export const calculateMonthlyAmortization = (
-  principal: number, 
-  annualRate: number, 
-  years: number, 
+  principal: number,
+  annualRate: number,
+  years: number,
   start: string,
   extraPaymentEnabled: boolean = false,
   extraPaymentStartDate: string = '',
@@ -65,73 +79,83 @@ export const calculateMonthlyAmortization = (
   const monthlyRate = annualRate / 12;
   const totalPayments = years * 12;
   
-  // Calculate monthly payment
-  const monthlyPayment = principal * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) / 
-                        (Math.pow(1 + monthlyRate, totalPayments) - 1);
+  // Calculate standard monthly payment (no extra)
+  const monthlyPayment = calculateStandardMonthlyPayment(principal, annualRate, years);
   
   let balance = principal;
   const schedule: ScheduleItem[] = [];
   let totalInterestPaid = 0;
   let totalPaid = 0;
-  // Parse date in local timezone to avoid timezone issues
+  
   const [startYear, startMonth] = start.split('-').map(Number);
   let currentDate = new Date(startYear, startMonth - 1, 1);
-  const extraStartDate = extraPaymentEnabled && extraPaymentStartDate ? (() => {
-    const [year, month] = extraPaymentStartDate.split('-').map(Number);
-    return new Date(year, month - 1, 1);
-  })() : null;
-  let extraPaymentMade = false;
+  
+  const extraStartDate = extraPaymentEnabled && extraPaymentStartDate
+    ? parseDate(extraPaymentStartDate)
+    : null;
+  
+  const extraPaymentMade = { value: false };
   const appliedOneTimePayments = new Set<string>();
   
-  for (let i = 1; i <= totalPayments && balance > 0.01; i++) {
+  let paymentNum = 1;
+  const maxPayments = totalPayments * 2; // Safety limit
+  
+  while (balance > 0.01 && paymentNum <= maxPayments) {
     const interestPayment = balance * monthlyRate;
     let principalPayment = monthlyPayment - interestPayment;
     
-    // Apply extra payments using shared logic
-    const extraPaymentMadeRef: { value: boolean } = { value: extraPaymentMade };
-    const extraPrincipal = applyExtraPayments(
-      currentDate,
-      balance,
-      principalPayment,
-      0,
-      extraPaymentEnabled,
-      extraPaymentAmount,
-      extraStartDate,
-      extraPaymentFrequency,
-      extraPaymentMadeRef,
-      oneTimePayments,
-      appliedOneTimePayments
-    );
-    extraPaymentMade = extraPaymentMadeRef.value;
+    // Ensure principal payment doesn't go negative
+    if (principalPayment < 0) principalPayment = 0;
     
+    let extraPrincipal = 0;
+    
+    // Apply recurring extra payments (monthly)
+    if (
+      extraPaymentEnabled &&
+      extraPaymentAmount > 0 &&
+      extraPaymentFrequency === 'monthly' &&
+      shouldApplyExtraPayment(currentDate, extraStartDate, extraPaymentFrequency, extraPaymentMade)
+    ) {
+      extraPrincipal += extraPaymentAmount;
+    }
+    
+    // Apply one-time payments for this month
+    const currentDateStr = formatDate(currentDate);
+    oneTimePayments.forEach(payment => {
+      if (payment.date === currentDateStr && !appliedOneTimePayments.has(payment.id)) {
+        extraPrincipal += payment.amount;
+        appliedOneTimePayments.add(payment.id);
+      }
+    });
+    
+    // Total principal payment
     principalPayment += extraPrincipal;
     
-    // Final check: if this would pay off the loan, adjust to exact balance
-    if (balance - principalPayment < 0.01) {
+    // Don't pay more than remaining balance
+    if (principalPayment > balance) {
       principalPayment = balance;
-      balance = 0;
-    } else {
-      balance -= principalPayment;
     }
+    
+    balance -= principalPayment;
+    if (balance < 0) balance = 0;
     
     totalInterestPaid += interestPayment;
     const totalPayment = interestPayment + principalPayment;
     totalPaid += totalPayment;
     
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    
     schedule.push({
-      paymentNum: i,
-      date: `${year}-${month}`,
+      paymentNum,
+      date: currentDateStr,
       payment: totalPayment,
       principal: principalPayment,
       interest: interestPayment,
-      balance: Math.max(0, balance),
+      balance: balance,
       totalInterest: totalInterestPaid
     });
     
+    // Move to next month
     currentDate.setMonth(currentDate.getMonth() + 1);
+    paymentNum++;
     
     if (balance < 0.01) break;
   }
@@ -151,10 +175,13 @@ export const calculateMonthlyAmortization = (
   };
 };
 
+/**
+ * Calculate biweekly amortization schedule with extra payments
+ */
 export const calculateBiweeklyAmortization = (
-  principal: number, 
-  annualRate: number, 
-  monthlyPayment: number, 
+  principal: number,
+  annualRate: number,
+  monthlyPayment: number,
   start: string,
   extraPaymentEnabled: boolean = false,
   extraPaymentStartDate: string = '',
@@ -162,84 +189,93 @@ export const calculateBiweeklyAmortization = (
   extraPaymentAmount: number = 0,
   oneTimePayments: Array<OneTimePayment> = []
 ): MortgageCalculation => {
+  // Biweekly payment is half of monthly payment
   const biweeklyPayment = monthlyPayment / 2;
+  
+  // Daily interest rate for 14-day periods
   const dailyRate = annualRate / 365;
   
   let balance = principal;
   const schedule: ScheduleItem[] = [];
   let totalInterestPaid = 0;
   let totalPaid = 0;
-  // Parse date in local timezone to avoid timezone issues
+  
   const [startYear, startMonth] = start.split('-').map(Number);
   let currentDate = new Date(startYear, startMonth - 1, 1);
-  const extraStartDate = extraPaymentEnabled && extraPaymentStartDate ? (() => {
-    const [year, month] = extraPaymentStartDate.split('-').map(Number);
-    return new Date(year, month - 1, 1);
-  })() : null;
-  let extraPaymentMade = false;
-  const appliedOneTimePayments = new Set<string>();
-  let paymentNum = 1;
   
-  while (balance > 0.01 && paymentNum <= 2000) {
+  const extraStartDate = extraPaymentEnabled && extraPaymentStartDate
+    ? parseDate(extraPaymentStartDate)
+    : null;
+  
+  const extraPaymentMade = { value: false };
+  const appliedOneTimePayments = new Set<string>();
+  
+  let paymentNum = 1;
+  const maxPayments = 2000; // Safety limit
+  
+  while (balance > 0.01 && paymentNum <= maxPayments) {
+    // Interest for 14 days
     const interestPayment = balance * dailyRate * 14;
     let principalPayment = biweeklyPayment - interestPayment;
     
-    // Apply extra payments using shared logic
-    const extraPaymentMadeRef: { value: boolean } = { value: extraPaymentMade };
-    const extraPrincipal = applyExtraPayments(
-      currentDate,
-      balance,
-      principalPayment,
-      0,
-      extraPaymentEnabled,
-      extraPaymentAmount,
-      extraStartDate,
-      extraPaymentFrequency,
-      extraPaymentMadeRef,
-      oneTimePayments,
-      appliedOneTimePayments
-    );
-    extraPaymentMade = extraPaymentMadeRef.value;
+    // Ensure principal payment doesn't go negative
+    if (principalPayment < 0) principalPayment = 0;
     
+    let extraPrincipal = 0;
+    
+    // Apply recurring extra payments (biweekly)
+    if (
+      extraPaymentEnabled &&
+      extraPaymentAmount > 0 &&
+      extraPaymentFrequency === 'biweekly' &&
+      shouldApplyExtraPayment(currentDate, extraStartDate, extraPaymentFrequency, extraPaymentMade)
+    ) {
+      extraPrincipal += extraPaymentAmount;
+    }
+    
+    // Apply one-time payments for this month
+    const currentDateStr = formatDate(currentDate);
+    oneTimePayments.forEach(payment => {
+      if (payment.date === currentDateStr && !appliedOneTimePayments.has(payment.id)) {
+        extraPrincipal += payment.amount;
+        appliedOneTimePayments.add(payment.id);
+      }
+    });
+    
+    // Total principal payment
     principalPayment += extraPrincipal;
     
-    // Final check: if this would pay off the loan, adjust to exact balance
-    if (balance - principalPayment < 0.01) {
+    // Don't pay more than remaining balance
+    if (principalPayment > balance) {
       principalPayment = balance;
-      balance = 0;
-    } else {
-      balance -= principalPayment;
     }
     
-    if (principalPayment < 0) {
-      break;
-    }
+    balance -= principalPayment;
+    if (balance < 0) balance = 0;
     
     totalInterestPaid += interestPayment;
-    const actualPayment = interestPayment + principalPayment;
-    totalPaid += actualPayment;
-    
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const totalPayment = interestPayment + principalPayment;
+    totalPaid += totalPayment;
     
     schedule.push({
-      paymentNum: paymentNum,
-      date: `${year}-${month}`,
-      payment: actualPayment,
+      paymentNum,
+      date: currentDateStr,
+      payment: totalPayment,
       principal: principalPayment,
       interest: interestPayment,
-      balance: Math.max(0, balance),
+      balance: balance,
       totalInterest: totalInterestPaid
     });
     
+    // Move to next biweekly period (14 days)
     currentDate.setDate(currentDate.getDate() + 14);
     paymentNum++;
     
     if (balance < 0.01) break;
   }
   
-  const yearsToPayoff = schedule.length / 26;
   const endDate = schedule.length > 0 ? schedule[schedule.length - 1].date : start;
+  const yearsToPayoff = schedule.length / 26; // 26 biweekly periods per year
   
   return {
     loanAmount: principal,
@@ -252,4 +288,3 @@ export const calculateBiweeklyAmortization = (
     yearsToPayoff: yearsToPayoff
   };
 };
-

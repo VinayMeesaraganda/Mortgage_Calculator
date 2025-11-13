@@ -16,6 +16,8 @@ export const calculateMonthlyPayment = (
   const monthlyRate = annualRate / 100 / 12;
   const numPayments = years * 12;
   
+  if (monthlyRate === 0) return principal / numPayments;
+  
   return (principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
          (Math.pow(1 + monthlyRate, numPayments) - 1);
 };
@@ -39,6 +41,8 @@ export const simulateMonthlyAmortization = (
   while (currentBalance > 0.01 && monthsPaid < maxMonths) {
     const interestPayment = currentBalance * monthlyRate;
     let principalPayment = monthlyPayment - interestPayment;
+    
+    if (principalPayment < 0) principalPayment = 0;
     
     // Add extra payment if specified
     if (extraPayment > 0) {
@@ -66,6 +70,7 @@ export const simulateBiweeklyAmortization = (
   balance: number,
   biweeklyPayment: number,
   annualRate: number,
+  extraPayment: number = 0,
   maxPayments: number = 780
 ): { paymentsCount: number; totalInterest: number } => {
   const dailyRate = annualRate / 100 / 365;
@@ -75,7 +80,16 @@ export const simulateBiweeklyAmortization = (
   
   while (currentBalance > 0.01 && paymentsCount < maxPayments) {
     const interestPayment = currentBalance * dailyRate * 14; // 14 days interest
-    const principalPayment = Math.min(biweeklyPayment - interestPayment, currentBalance);
+    let principalPayment = biweeklyPayment - interestPayment;
+    
+    if (principalPayment < 0) principalPayment = 0;
+    
+    // Add extra payment if specified
+    if (extraPayment > 0) {
+      principalPayment += extraPayment;
+    }
+    
+    principalPayment = Math.min(principalPayment, currentBalance);
     
     if (principalPayment <= 0) break; // Safety check
     
@@ -86,4 +100,3 @@ export const simulateBiweeklyAmortization = (
   
   return { paymentsCount, totalInterest };
 };
-

@@ -180,6 +180,12 @@ const MortgageCalculator: React.FC = () => {
     // Force re-render of all components using currency
     setCurrencyRenderKey(prev => prev + 1);
   }, [selectedCurrency]);
+
+  // Force chart re-render when one-time payments change
+  const [chartRenderKey, setChartRenderKey] = useState(0);
+  useEffect(() => {
+    setChartRenderKey(prev => prev + 1);
+  }, [oneTimePayments]);
   
   // Convenience aliases for backward compatibility
   const homeValue = homeValueInput.value;
@@ -876,28 +882,13 @@ const MortgageCalculator: React.FC = () => {
     return { monthlyProjection, biweeklyProjection, outstandingBalance };
   }, [getCurrentOutstandingBalance, interestRate, paymentAmount, calculatePayoffWithFixedPayment]);
   
-  // Get forward projections
+  // Get forward projections (used for display text about switching payment types)
   const forwardProjections = useMemo(() => calculateForwardProjections(), [calculateForwardProjections]);
   
-  // Calculate remaining interest and time using FORWARD projections from today
-  const remainingInterest = paymentType === 'monthly' 
-    ? forwardProjections.monthlyProjection.totalInterest 
-    : forwardProjections.biweeklyProjection.totalInterest;
-    
-  const remainingInterestComparison = paymentType === 'monthly'
-    ? forwardProjections.biweeklyProjection.totalInterest
-    : forwardProjections.monthlyProjection.totalInterest;
-    
-  const remainingYears = paymentType === 'monthly'
-    ? forwardProjections.monthlyProjection.yearsToPayoff
-    : forwardProjections.biweeklyProjection.yearsToPayoff;
-    
-  const remainingYearsComparison = paymentType === 'monthly'
-    ? forwardProjections.biweeklyProjection.yearsToPayoff
-    : forwardProjections.monthlyProjection.yearsToPayoff;
-  
-  // Calculate savings based on comparison mode (using forward projections)
+  // Calculate savings based on comparison mode
   let interestSaved, timeSaved;
+  // Variables for graph display - use correct values based on mode
+  let graphRemainingInterest, graphRemainingInterestComparison;
   
   if (comparisonMode === 'extra-payments') {
     // For extra payments, compare the actual schedules (current implementation is correct)
@@ -942,10 +933,19 @@ const MortgageCalculator: React.FC = () => {
     
     interestSaved = remainingInterestComp - remainingInterestCurrent;
     timeSaved = remainingYearsComp - remainingYearsCurrent;
+    
+    // Use the correctly calculated values for graphs
+    graphRemainingInterest = remainingInterestCurrent;
+    graphRemainingInterestComparison = remainingInterestComp;
   } else {
-    // Comparing monthly vs biweekly using forward projections
-    interestSaved = remainingInterestComparison - remainingInterest;
-    timeSaved = remainingYearsComparison - remainingYears;
+    // Comparing monthly vs biweekly - use ACTUAL calculation totals, not forward projections
+    // This ensures graphs match the actual calculated values
+    interestSaved = comparisonCalc.totalInterest - totalInterest;
+    timeSaved = comparisonCalc.yearsToPayoff - yearsToPayoff;
+    
+    // Use actual total interest for graphs (not forward projections)
+    graphRemainingInterest = totalInterest;
+    graphRemainingInterestComparison = comparisonCalc.totalInterest;
   }
 
   const isExtraPaymentComparison = comparisonMode === 'extra-payments';
@@ -960,7 +960,7 @@ const MortgageCalculator: React.FC = () => {
       principal: loanAmount - item.balance,
       interest: item.totalInterest,
       cumulative: item.totalInterest + (loanAmount - item.balance)
-    })), [schedule, loanAmount]);
+    })), [schedule, loanAmount, oneTimePayments]);
 
   // Excel Export Handler
   // Memoized with useCallback to prevent recreation on every render
@@ -1176,14 +1176,14 @@ const MortgageCalculator: React.FC = () => {
     ? [
         { 
           name: `Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'}`, 
-          interest: remainingInterestComparison,
+          interest: graphRemainingInterestComparison,
           type: 'comparison',
           label: `Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments`,
           endDate: formatDate(comparisonCalc.endDate)
         },
         { 
           name: `With Extra Payments`, 
-          interest: remainingInterest,
+          interest: graphRemainingInterest,
           type: 'primary',
           label: 'With Extra Payments',
           endDate: formatDate(endDate)
@@ -1192,19 +1192,19 @@ const MortgageCalculator: React.FC = () => {
     : [
         { 
           name: 'Monthly Payments',
-          interest: paymentType === 'monthly' ? remainingInterest : remainingInterestComparison,
+          interest: paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison,
           type: 'monthly',
           label: 'Monthly Payments',
           endDate: formatDate(paymentType === 'monthly' ? endDate : comparisonCalc.endDate)
         },
         {
           name: 'Bi-weekly Payments',
-          interest: paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison,
+          interest: paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison,
           type: 'biweekly',
           label: 'Bi-weekly Payments',
           endDate: formatDate(paymentType === 'biweekly' ? endDate : comparisonCalc.endDate)
         }
-      ], [isExtraPaymentComparison, paymentType, remainingInterest, remainingInterestComparison, comparisonCalc.endDate, endDate]);
+      ], [isExtraPaymentComparison, paymentType, graphRemainingInterest, graphRemainingInterestComparison, comparisonCalc.endDate, endDate, oneTimePayments]);
 
   return (
     <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
@@ -1687,7 +1687,10 @@ const MortgageCalculator: React.FC = () => {
                     </label>
                     <button
                       onClick={() => {
-                        setOneTimePayments([...oneTimePayments, { id: Date.now().toString(), date: startDate, amount: 0 }]);
+                        // Convert startDate from YYYY-MM-DD to YYYY-MM for calculations
+                        const [year, month] = startDate.split('-');
+                        const dateYYYYMM = `${year}-${month}`;
+                        setOneTimePayments([...oneTimePayments, { id: Date.now().toString(), date: dateYYYYMM, amount: 0 }]);
                       }}
                       className="text-xs bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 px-3 py-1 rounded-lg hover:from-emerald-200 hover:to-green-200 shadow-md hover:shadow-lg transition-all font-bold border-2 border-emerald-300"
                     >
@@ -1704,10 +1707,12 @@ const MortgageCalculator: React.FC = () => {
                               Date
                             </label>
                             <DatePicker
-                              value={payment.date}
+                              value={payment.date.length === 7 ? `${payment.date}-01` : payment.date}
                               onChange={(newDate) => {
                                 const updated = [...oneTimePayments];
-                                updated[index].date = newDate;
+                                // Convert YYYY-MM-DD to YYYY-MM for calculations
+                                const [year, month] = newDate.split('-');
+                                updated[index].date = `${year}-${month}`;
                                 setOneTimePayments(updated);
                               }}
                               className="w-full"
@@ -2434,11 +2439,11 @@ const MortgageCalculator: React.FC = () => {
                       <h3>Payment Plan Comparison Chart</h3>
                       <p>
                         {isExtraPaymentComparison 
-                          ? `Bar chart comparing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments (${formatCurrency(remainingInterestComparison)} remaining interest from today) vs With Extra Payments (${formatCurrency(remainingInterest)} remaining interest from today). Extra payments save ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`
-                          : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? remainingInterest : remainingInterestComparison)} remaining interest from today) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison)} remaining interest from today). Bi-weekly saves ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`}
+                          ? `Bar chart comparing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments (${formatCurrency(graphRemainingInterestComparison)} remaining interest from today) vs With Extra Payments (${formatCurrency(graphRemainingInterest)} remaining interest from today). Extra payments save ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`
+                          : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest from today) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest from today). Bi-weekly saves ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`}
                       </p>
                     </div>
-                    <ResponsiveContainer width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(remainingInterestComparison)} remaining interest versus Extra Payments with ${formatCurrency(remainingInterest)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? remainingInterest : remainingInterestComparison)} remaining interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? remainingInterest : remainingInterestComparison)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward`}>
+                    <ResponsiveContainer key={`comparison-chart-${chartRenderKey}`} width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(graphRemainingInterestComparison)} remaining interest versus Extra Payments with ${formatCurrency(graphRemainingInterest)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward`}>
                       <BarChart data={comparisonBarData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} aria-label="Payment plan comparison bar chart">
                         <defs>
                           <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -2582,7 +2587,7 @@ const MortgageCalculator: React.FC = () => {
                     <h3>Amortization Overview Chart</h3>
                     <p>Area chart showing mortgage amortization over time with three data series: Remaining Balance (decreasing from {formatCurrency(loanAmount)} to {CURRENCY_DATA[selectedCurrency].symbol}0), Principal Paid (increasing from {CURRENCY_DATA[selectedCurrency].symbol}0 to {formatCurrency(loanAmount)}), and Cumulative Interest (increasing to {formatCurrency(totalInterest)}). The chart spans from {formatDate(startDate)} to {formatDate(endDate)}.</p>
                   </div>
-                  <ResponsiveContainer width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
+                  <ResponsiveContainer key={`chart-${chartRenderKey}`} width="100%" height={250} aria-label={`Amortization chart showing remaining balance decreasing from ${formatCurrency(loanAmount)} to zero, principal paid increasing to ${formatCurrency(loanAmount)}, and cumulative interest reaching ${formatCurrency(totalInterest)} over ${yearsToPayoff.toFixed(1)} years`}>
                     <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }} aria-label="Mortgage amortization area chart">
                       <defs>
                         <linearGradient id="balanceGradient2" x1="0" y1="0" x2="0" y2="1">
