@@ -2008,9 +2008,17 @@ const MortgageCalculator: React.FC = () => {
                               <td className="py-1 px-1 text-right font-bold text-blue-700">{formatCurrency(trueMonthlyPayment)}</td>
                               </tr>
                           )}
+                          <tr className="border-b border-slate-100">
+                            <td className="py-1 px-1 text-slate-700 text-[10px]">Total Paid</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900 text-[10px]">{formatCurrency(totalPaid)}</td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="py-1 px-1 text-slate-700 text-[10px]">Term</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900 text-[10px]">{formatYearsMonths(yearsToPayoff)}</td>
+                          </tr>
                           <tr>
-                            <td className="py-1 px-1 text-slate-700 text-[10px]">Paid / Term</td>
-                            <td className="py-1 px-1 text-right font-semibold text-slate-900 text-[10px]">{formatCurrency(totalPaid)} / {formatYearsMonths(yearsToPayoff)}</td>
+                            <td className="py-1 px-1 text-slate-700 text-[10px]">Payment End Date</td>
+                            <td className="py-1 px-1 text-right font-semibold text-slate-900 text-[10px]">{formatDate(endDate)}</td>
                           </tr>
                         </tbody>
                       </table>
