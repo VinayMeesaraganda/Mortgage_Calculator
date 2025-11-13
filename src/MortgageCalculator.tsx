@@ -3176,10 +3176,38 @@ const MortgageCalculator: React.FC = () => {
                         // Recalculate schedule for this mortgage
                         const mortgageLoan = mortgage.homeValue - mortgage.downPayment;
                         const monthlyRate = mortgage.interestRate / 100 / 12;
-                        const numPayments = mortgage.paymentType === 'biweekly' ? mortgage.tenure * 26 : mortgage.tenure * 12;
-                        const paymentAmount = mortgage.paymentType === 'biweekly' 
-                          ? (mortgageLoan * monthlyRate * 2) / (1 - Math.pow(1 + monthlyRate * 2, -numPayments))
-                          : (mortgageLoan * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numPayments));
+                        
+                        let paymentAmount, numPayments, totalInterestForMortgage;
+                        
+                        if (mortgage.paymentType === 'biweekly') {
+                          // Biweekly payment calculation
+                          numPayments = mortgage.tenure * 26; // 26 biweekly periods per year
+                          // Calculate monthly payment first, then divide by 2 for biweekly
+                          const monthlyPayment = (mortgageLoan * monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / 
+                                                (Math.pow(1 + monthlyRate, totalMonths) - 1);
+                          paymentAmount = monthlyPayment / 2;
+                          
+                          // For biweekly, simulate the full schedule to get accurate total interest
+                          const dailyRate = mortgage.interestRate / 100 / 365;
+                          let simBalance = mortgageLoan;
+                          let simTotalInterest = 0;
+                          let paymentsProcessed = 0;
+                          
+                          while (simBalance > 0.01 && paymentsProcessed < numPayments) {
+                            const interest = simBalance * dailyRate * 14; // 14 days interest
+                            const principal = Math.min(paymentAmount - interest, simBalance);
+                            simBalance -= principal;
+                            simTotalInterest += interest;
+                            paymentsProcessed++;
+                          }
+                          totalInterestForMortgage = simTotalInterest;
+                        } else {
+                          // Monthly payment calculation (correct)
+                          numPayments = mortgage.tenure * 12;
+                          paymentAmount = (mortgageLoan * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+                                        (Math.pow(1 + monthlyRate, numPayments) - 1);
+                          totalInterestForMortgage = (paymentAmount * numPayments) - mortgageLoan;
+                        }
                         
                         if (isNaN(paymentAmount) || !isFinite(paymentAmount)) {
                           // Fallback calculation if payment amount calculation fails
@@ -3187,20 +3215,36 @@ const MortgageCalculator: React.FC = () => {
                           interestRemaining = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
                         } else {
                           let balance = mortgageLoan;
-                          for (let i = 0; i < monthsElapsed && i < totalMonths; i++) {
-                            const interest = balance * monthlyRate;
-                            const principal = paymentAmount - interest;
-                            balance -= principal;
-                            principalPaidFromPayments += principal;
-                            principalPaid += principal;
-                            interestPaid += interest;
+                          
+                          if (mortgage.paymentType === 'biweekly') {
+                            // Calculate biweekly payments up to today
+                            const dailyRate = mortgage.interestRate / 100 / 365;
+                            const biweeklyPeriodsElapsed = Math.floor(monthsElapsed * 2.17); // ~26 periods per year / 12 months
+                            
+                            for (let i = 0; i < biweeklyPeriodsElapsed && balance > 0.01; i++) {
+                              const interest = balance * dailyRate * 14; // 14 days interest
+                              const principal = Math.min(paymentAmount - interest, balance);
+                              balance -= principal;
+                              principalPaidFromPayments += principal;
+                              principalPaid += principal;
+                              interestPaid += interest;
+                            }
+                          } else {
+                            // Calculate monthly payments up to today
+                            for (let i = 0; i < monthsElapsed && i < totalMonths; i++) {
+                              const interest = balance * monthlyRate;
+                              const principal = Math.min(paymentAmount - interest, balance);
+                              balance -= principal;
+                              principalPaidFromPayments += principal;
+                              principalPaid += principal;
+                              interestPaid += interest;
+                            }
                           }
                           
                           // Outstanding loan = loan amount - principal paid from payments
                           principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
                           
-                          // Calculate total interest for the mortgage
-                          const totalInterestForMortgage = (paymentAmount * numPayments) - mortgageLoan;
+                          // Calculate remaining interest
                           interestRemaining = Math.max(0, totalInterestForMortgage - interestPaid);
                         }
                       } else if (monthsElapsed >= totalMonths) {
