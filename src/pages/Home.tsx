@@ -48,7 +48,7 @@ const Home: React.FC = () => {
       color: 'from-green-500 to-emerald-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
-      available: false, // Show as "Coming Soon" but allow logged-in users to access
+      available: true,
       requiresLogin: true
     },
     {

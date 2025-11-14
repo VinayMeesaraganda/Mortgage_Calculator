@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Usernames collection
+    match /usernames/{username} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Mutual Funds collection
+    match /mutualFunds/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Mortgages collection - CRITICAL for mortgage tracking
+    match /mortgages/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Stock Holdings collection
+    match /stockHoldings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Deny all other access (MUST BE LAST)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

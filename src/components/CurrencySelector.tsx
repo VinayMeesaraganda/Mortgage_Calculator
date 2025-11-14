@@ -15,14 +15,12 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
   return (
     <div className="flex items-center gap-2">
       <Globe size={18} className="text-slate-600" />
-      <label htmlFor="currency-select" className="text-sm font-semibold text-slate-700">
-        Currency:
-      </label>
       <select
         id="currency-select"
         value={selectedCurrency}
         onChange={(e) => onCurrencyChange(e.target.value as Currency)}
         className="px-3 py-2 border-2 border-slate-300 rounded-lg text-sm font-semibold bg-white hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all cursor-pointer"
+        title="Select currency"
       >
         {Object.entries(CURRENCY_DATA).map(([code, info]) => (
           <option key={code} value={code}>
