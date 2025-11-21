@@ -1,8 +1,8 @@
 // Firestore service for Mortgage data
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
+import {
+  doc,
+  getDoc,
+  setDoc,
   deleteDoc,
   onSnapshot
 } from 'firebase/firestore';
@@ -17,7 +17,7 @@ const COLLECTION_NAME = 'mortgages';
  * Save mortgages for a user
  */
 export async function saveMortgages(
-  userId: string, 
+  userId: string,
   mortgages: SavedMortgage[]
 ): Promise<void> {
   try {
@@ -30,7 +30,7 @@ export async function saveMortgages(
     }
 
     const userDocRef = doc(db, COLLECTION_NAME, userId);
-    
+
     // Prepare data for Firestore (ensure all fields are serializable)
     const firestoreData = {
       mortgages: mortgages.map(mortgage => ({
@@ -53,7 +53,23 @@ export async function saveMortgages(
         })),
         currency: mortgage.currency || 'USD',
         createdAt: mortgage.createdAt,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+
+        // Investment Property Fields
+        propertyType: mortgage.propertyType || 'primary',
+        monthlyRent: typeof mortgage.monthlyRent === 'number' ? mortgage.monthlyRent : 0,
+        vacancyRate: typeof mortgage.vacancyRate === 'number' ? mortgage.vacancyRate : 0,
+        propertyManagementPercent: typeof mortgage.propertyManagementPercent === 'number' ? mortgage.propertyManagementPercent : 0,
+        maintenance: typeof mortgage.maintenance === 'number' ? mortgage.maintenance : 0,
+        utilities: typeof mortgage.utilities === 'number' ? mortgage.utilities : 0,
+        propertyAppreciationRate: typeof mortgage.propertyAppreciationRate === 'number' ? mortgage.propertyAppreciationRate : 0,
+
+        // Additional Costs
+        propertyTax: typeof mortgage.propertyTax === 'number' ? mortgage.propertyTax : 0,
+        propertyTaxPeriod: mortgage.propertyTaxPeriod || 'year',
+        homeInsurance: typeof mortgage.homeInsurance === 'number' ? mortgage.homeInsurance : 0,
+        homeInsurancePeriod: mortgage.homeInsurancePeriod || 'year',
+        hoaFees: typeof mortgage.hoaFees === 'number' ? mortgage.hoaFees : 0
       })),
       updatedAt: new Date().toISOString()
     };
@@ -63,7 +79,7 @@ export async function saveMortgages(
     logger.info('Mortgages saved successfully');
   } catch (error) {
     logFirestoreError('save mortgages', error);
-    
+
     const firebaseError = error as { code?: string; message?: string };
     logger.error('Error details:', {
       code: firebaseError?.code,
@@ -105,21 +121,21 @@ export async function loadMortgages(
     logFirestoreOperation('load mortgages', { userId });
     const userDocRef = doc(db, COLLECTION_NAME, userId);
     const userDoc = await getDoc(userDocRef);
-    
+
     if (!userDoc.exists()) {
       logger.info('No mortgages found for user, returning empty array');
       return [];
     }
-    
+
     const data = userDoc.data();
     const mortgages = (data.mortgages || []) as SavedMortgage[];
     logger.info('Mortgages loaded successfully', { count: mortgages.length });
     return mortgages;
   } catch (error) {
     logFirestoreError('load mortgages', error);
-    
+
     const firebaseError = error as { code?: string; message?: string };
-    
+
     // Provide more specific error messages
     if (firebaseError?.code === 'permission-denied') {
       throw new Error(ERROR_MESSAGES.FIRESTORE_PERMISSION_DENIED);
@@ -143,7 +159,7 @@ export function subscribeToMortgages(
   callback: (mortgages: SavedMortgage[]) => void
 ): () => void {
   const userDocRef = doc(db, COLLECTION_NAME, userId);
-  
+
   const unsubscribe = onSnapshot(
     userDocRef,
     (docSnapshot) => {
@@ -160,7 +176,7 @@ export function subscribeToMortgages(
       callback([]);
     }
   );
-  
+
   return unsubscribe;
 }
 

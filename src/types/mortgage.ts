@@ -90,5 +90,21 @@ export interface SavedMortgage {
   currency: Currency;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
+
+  // Investment Property Fields
+  propertyType?: 'primary' | 'investment';
+  monthlyRent?: number;
+  vacancyRate?: number;
+  propertyManagementPercent?: number;
+  maintenance?: number;
+  utilities?: number;
+  propertyAppreciationRate?: number;
+
+  // Additional Costs
+  propertyTax?: number;
+  propertyTaxPeriod?: 'year' | 'month';
+  homeInsurance?: number;
+  homeInsurancePeriod?: 'year' | 'month';
+  hoaFees?: number;
 }
 

@@ -10,11 +10,11 @@ interface DatePickerProps {
   disabled?: boolean;
 }
 
-const DatePickerComponent: React.FC<DatePickerProps> = ({ 
-  value, 
-  onChange, 
-  className = '', 
-  disabled = false 
+const DatePickerComponent: React.FC<DatePickerProps> = ({
+  value,
+  onChange,
+  className = '',
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -35,8 +35,8 @@ const DatePickerComponent: React.FC<DatePickerProps> = ({
   const popupRef = useRef<HTMLDivElement>(null);
 
   const currentYear = new Date().getFullYear();
-  // Generate years from 20 years ago to 10 years in the future (30 years total)
-  const years = Array.from({ length: 30 }, (_, i) => currentYear - 20 + i);
+  // Generate years from 50 years ago to 50 years in the future (100 years total)
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - 50 + i);
   const months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -65,7 +65,7 @@ const DatePickerComponent: React.FC<DatePickerProps> = ({
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
-    
+
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
@@ -73,28 +73,28 @@ const DatePickerComponent: React.FC<DatePickerProps> = ({
     const updatePosition = () => {
       if (isOpen && buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
-        const popupWidth = 280; // w-70 = 17.5rem = 280px
-        const popupHeight = 450; // approximate height
-        
+        const popupWidth = 260; // w-64 = 16rem = 256px
+        const popupHeight = 400; // approximate height
+
         // Calculate position using viewport coordinates
         let top = rect.bottom + 4;
         let left = rect.left;
-        
+
         // Adjust if popup goes off right edge
         if (left + popupWidth > window.innerWidth) {
           left = window.innerWidth - popupWidth - 10;
         }
-        
+
         // Adjust if popup goes off left edge
         if (left < 10) {
           left = 10;
         }
-        
+
         // Adjust if popup goes off bottom edge (show above button instead)
         if (top + popupHeight > window.innerHeight) {
           top = rect.top - popupHeight - 4;
         }
-        
+
         setPopupPosition({ top, left });
       }
     };
@@ -156,7 +156,7 @@ const DatePickerComponent: React.FC<DatePickerProps> = ({
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(true)}
         disabled={disabled}
         className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-300 text-sm bg-white shadow-sm hover:shadow-md hover:border-blue-300 flex items-center justify-between ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
         style={{ overflow: 'visible' }}
@@ -168,80 +168,124 @@ const DatePickerComponent: React.FC<DatePickerProps> = ({
       </button>
 
       {isOpen && !disabled && createPortal(
-        <div 
+        <div
           ref={popupRef}
-          className="w-70 bg-white border-2 border-blue-200 rounded-xl shadow-2xl p-4 backdrop-blur-lg"
-          style={{ 
+          className="w-72 bg-white border border-slate-200 rounded-xl shadow-2xl backdrop-blur-lg overflow-hidden font-sans"
+          style={{
             position: 'fixed',
             top: `${popupPosition.top}px`,
             left: `${popupPosition.left}px`,
             zIndex: 999999,
-            overflow: 'visible',
-            maxHeight: '500px'
+            maxHeight: '450px'
           }}
         >
-          {/* Year Selector */}
-          <div className="mb-3">
-            <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase">Year</label>
-            <div className="relative">
-              <select
-                value={selectedYear}
-                onChange={(e) => {
-                  const newYear = Number(e.target.value);
-                  setSelectedYear(newYear);
-                  // Adjust day if needed
-                  const maxDays = getDaysInMonth(newYear, selectedMonth);
-                  if (selectedDay > maxDays) {
-                    setSelectedDay(maxDays);
-                  }
-                }}
-                className="w-full px-2 py-1.5 border-2 border-blue-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-                size={5}
-                style={{ maxHeight: '120px' }}
-              >
-                {years.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Scroll to see more years</p>
-          </div>
+          {/* Header */}
+          <div className="bg-blue-900 p-3 flex items-center justify-between text-white">
+            <button
+              type="button"
+              onClick={() => {
+                let newMonth = selectedMonth - 1;
+                let newYear = selectedYear;
+                if (newMonth < 1) {
+                  newMonth = 12;
+                  newYear -= 1;
+                }
+                setSelectedMonth(newMonth);
+                setSelectedYear(newYear);
+              }}
+              className="p-1 hover:bg-blue-800 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
 
-          {/* Month Grid */}
-          <div className="mb-3">
-            <label className="block text-xs font-semibold text-slate-700 mb-2 uppercase">Month</label>
-            <div className="grid grid-cols-3 gap-2">
-              {months.map((month, idx) => (
-                <button
-                  key={month}
-                  type="button"
-                  onClick={() => handleMonthClick(idx)}
-                  className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                    idx + 1 === selectedMonth
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                      : 'bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-700'
-                  }`}
+            <div className="flex items-center space-x-2">
+              <div className="relative group">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => handleMonthClick(parseInt(e.target.value) - 1)}
+                  className="appearance-none bg-transparent font-semibold text-sm cursor-pointer focus:outline-none pr-4 text-center"
+                  style={{ textAlignLast: 'center' }}
                 >
-                  {month}
-                </button>
-              ))}
+                  {months.map((m, i) => (
+                    <option key={m} value={i + 1} className="text-slate-900">{m}</option>
+                  ))}
+                </select>
+                <div className="absolute right-0 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <select
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const newYear = Number(e.target.value);
+                    setSelectedYear(newYear);
+                    const maxDays = getDaysInMonth(newYear, selectedMonth);
+                    if (selectedDay > maxDays) setSelectedDay(maxDays);
+                  }}
+                  className="appearance-none bg-transparent font-semibold text-sm cursor-pointer focus:outline-none pr-4"
+                >
+                  {years.map(y => (
+                    <option key={y} value={y} className="text-slate-900">{y}</option>
+                  ))}
+                </select>
+                <div className="absolute right-0 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                let newMonth = selectedMonth + 1;
+                let newYear = selectedYear;
+                if (newMonth > 12) {
+                  newMonth = 1;
+                  newYear += 1;
+                }
+                setSelectedMonth(newMonth);
+                setSelectedYear(newYear);
+              }}
+              className="p-1 hover:bg-blue-800 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
 
-          {/* Day Grid */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2 uppercase">Day</label>
-            <div className="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto">
+          {/* Days of Week */}
+          <div className="bg-blue-900 px-3 pb-2 grid grid-cols-7 gap-1 text-center">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+              <div key={d} className="text-xs font-medium text-blue-200">{d}</div>
+            ))}
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="p-3">
+            <div className="grid grid-cols-7 gap-1">
+              {/* Empty slots for days before the 1st of the month */}
+              {Array.from({ length: new Date(selectedYear, selectedMonth - 1, 1).getDay() }).map((_, i) => (
+                <div key={`empty-${i}`} />
+              ))}
+
               {days.map((day) => (
                 <button
                   key={day}
                   type="button"
                   onClick={() => handleDayClick(day)}
-                  className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                    day === selectedDay
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                      : 'bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-700'
-                  }`}
+                  className={`w-8 h-8 flex items-center justify-center text-sm rounded-full transition-all ${day === selectedDay
+                    ? 'bg-blue-600 text-white shadow-md font-semibold'
+                    : 'text-slate-700 hover:bg-blue-50 hover:text-blue-600'
+                    }`}
                 >
                   {day}
                 </button>
