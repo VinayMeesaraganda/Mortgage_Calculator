@@ -54,9 +54,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ insuranc
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-blue-600 rounded-lg">

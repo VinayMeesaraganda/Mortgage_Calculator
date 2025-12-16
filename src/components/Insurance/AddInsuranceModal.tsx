@@ -210,23 +210,23 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
     ];
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
-                    <h2 className="text-xl font-bold text-gray-800">
-                        {editInsurance ? 'Edit Insurance Policy' : 'Add Insurance Policy'}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+                        {editInsurance ? 'Edit Insurance Policy' : 'Add New Insurance Policy'}
                     </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                         <X size={20} />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                     {/* Step 1: Select Category */}
                     {step === 1 && !editInsurance && (
                         <div>
-                            <h3 className="text-lg font-semibold mb-4">Select Insurance Type</h3>
-                            <div className="grid grid-cols-2 gap-4">
+                            <h3 className="text-base sm:text-lg font-semibold mb-4">Select Insurance Type</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 {categories.map((cat) => {
                                     const Icon = cat.icon;
                                     return (
@@ -237,7 +237,7 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
                                                 setCategory(cat.id);
                                                 setStep(2);
                                             }}
-                                            className={`p-6 border-2 rounded-xl hover:shadow-lg transition-all ${category === cat.id
+                                            className={`p-4 sm:p-6 border-2 rounded-xl hover:shadow-lg transition-all min-h-[80px] sm:min-h-auto ${category === cat.id
                                                 ? `border-${cat.color}-500 bg-${cat.color}-50`
                                                 : 'border-gray-200 hover:border-gray-300'
                                                 }`}
@@ -257,7 +257,7 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
                             <h3 className="text-lg font-semibold">Policy Details</h3>
 
                             {/* Common Fields */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Provider</label>
                                     <input
