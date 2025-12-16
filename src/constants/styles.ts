@@ -2,8 +2,8 @@
 
 export const CARD_STYLE = "bg-gradient-to-br from-white/90 via-white/85 to-slate-50/60 rounded-xl shadow-xl border-2 border-slate-200/50 backdrop-blur-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-0.5 relative group";
 
-export const CARD_SHADOW = { 
-  boxShadow: '0 8px 32px rgba(100, 116, 139, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset' 
+export const CARD_SHADOW = {
+  boxShadow: '0 8px 32px rgba(100, 116, 139, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset'
 };
 
 export const INPUT_STYLE = "w-full px-3 py-2 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm bg-white shadow-sm hover:shadow-md hover:border-blue-300";

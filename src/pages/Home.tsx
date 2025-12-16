@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, PieChart, Shield, Banknote, LogOut, User, LogIn, UserPlus } from 'lucide-react';
+import { Calculator, TrendingUp, PieChart, Shield, Banknote, LogOut, User, LogIn, UserPlus, Home as HomeIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginModal from '../components/LoginModal';
 
@@ -54,33 +54,55 @@ const Home: React.FC = () => {
     {
       id: 'insurance',
       title: 'Insurance',
-      description: 'Compare insurance plans, calculate premiums, and find the best coverage for your needs.',
+      description: 'Track policies, manage renewals, calculate premiums, and optimize your insurance coverage.',
       icon: Shield,
       path: '/insurance',
       color: 'from-orange-500 to-red-600',
       bgColor: 'bg-orange-50',
       borderColor: 'border-orange-200',
-      available: false
+      available: true
+    },
+    {
+      id: 'affordability',
+      title: 'Affordability Calculator',
+      description: 'Estimate how much house you can afford based on your income, debts, and down payment.',
+      icon: Banknote,
+      path: '/affordability-calculator',
+      color: 'from-green-500 to-emerald-600',
+      bgColor: 'bg-green-50',
+      borderColor: 'border-green-200',
+      available: true
+    },
+    {
+      id: 'rent-vs-buy',
+      title: 'Rent vs. Buy',
+      description: 'Compare the long-term costs of renting versus buying a home to make the right decision.',
+      icon: HomeIcon, // Using Home icon from lucide-react
+      path: '/rent-vs-buy-calculator',
+      color: 'from-blue-500 to-cyan-600',
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200',
+      available: true
     },
     {
       id: 'fixed-deposits',
       title: 'Fixed Deposits',
-      description: 'Calculate fixed deposit returns, compare interest rates, and plan your savings.',
+      description: 'Manage your FD portfolio, track maturity dates, and analyze returns with our Financial Advisor manager.',
       icon: Banknote,
       path: '/fixed-deposits',
       color: 'from-amber-500 to-yellow-600',
       bgColor: 'bg-amber-50',
       borderColor: 'border-amber-200',
-      available: false
+      available: true
     }
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
       {/* Login Modal */}
-      <LoginModal 
-        isOpen={showLoginModal} 
-        onClose={() => setShowLoginModal(false)} 
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
       />
 
       {/* Header */}
@@ -143,13 +165,13 @@ const Home: React.FC = () => {
             Your All-in-One Financial Tools Suite
           </h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            Access powerful financial tools and calculators to make informed decisions about mortgages, 
-            investments, insurance, and savings. Track your portfolio, calculate returns, and plan your financial future. 
+            Access powerful financial tools and calculators to make informed decisions about mortgages,
+            investments, insurance, and savings. Track your portfolio, calculate returns, and plan your financial future.
             All tools are <span className="font-semibold text-blue-600">free to use</span> with no signup required.
             {!currentUser && (
               <>
                 <span className="block mt-2 text-sm">
-                  <button 
+                  <button
                     onClick={() => setShowLoginModal(true)}
                     className="text-blue-600 hover:text-blue-700 font-semibold underline"
                   >
@@ -184,11 +206,10 @@ const Home: React.FC = () => {
             const Icon = tool.icon;
             // Determine if tool is accessible (available or requires login and user is logged in)
             const isAccessible = tool.available || (tool.requiresLogin && currentUser);
-            
+
             const cardContent = (
-              <div className={`${tool.bgColor} rounded-xl border-2 ${tool.borderColor} p-6 h-full transition-all duration-300 hover:shadow-xl hover:scale-105 ${
-                isAccessible ? 'hover:border-opacity-60 cursor-pointer' : 'cursor-not-allowed opacity-75'
-              }`}>
+              <div className={`${tool.bgColor} rounded-xl border-2 ${tool.borderColor} p-6 h-full transition-all duration-300 hover:shadow-xl hover:scale-105 ${isAccessible ? 'hover:border-opacity-60 cursor-pointer' : 'cursor-not-allowed opacity-75'
+                }`}>
                 <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${tool.color} flex items-center justify-center mb-4 shadow-lg`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>

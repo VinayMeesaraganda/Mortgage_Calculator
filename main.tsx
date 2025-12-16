@@ -10,6 +10,8 @@ import StockInvestments from './src/pages/StockInvestments';
 import MutualFunds from './src/pages/MutualFunds';
 import Insurance from './src/pages/Insurance';
 import FixedDeposits from './src/pages/FixedDeposits';
+import AffordabilityCalculator from './src/pages/AffordabilityCalculator';
+import RentVsBuyCalculator from './src/pages/RentVsBuyCalculator';
 import ProtectedRoute from './src/components/ProtectedRoute';
 import './index.css';
 
@@ -17,28 +19,30 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ToastProvider>
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/mortgage-calculator" element={<MortgageCalculator />} />
               <Route path="/mutual-funds" element={<MutualFunds />} />
-              <Route path="/insurance" element={<Insurance />} />
               <Route path="/fixed-deposits" element={<FixedDeposits />} />
-              
+              <Route path="/insurance" element={<Insurance />} />
+              <Route path="/affordability-calculator" element={<AffordabilityCalculator />} />
+              <Route path="/rent-vs-buy-calculator" element={<RentVsBuyCalculator />} />
+
               {/* Protected Routes - Login Required */}
               <Route path="/stock-investments" element={
                 <ProtectedRoute>
                   <StockInvestments />
                 </ProtectedRoute>
               } />
-          
-          {/* Redirect unknown routes to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+
+              {/* Redirect unknown routes to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
   </React.StrictMode>

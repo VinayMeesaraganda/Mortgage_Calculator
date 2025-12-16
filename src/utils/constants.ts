@@ -4,7 +4,7 @@
 // Timing Constants
 export const DEBOUNCE_DELAYS = {
   MORTGAGE_UPDATE: 2000, // 2 seconds for local mortgage updates
-  FIRESTORE_SAVE: 10000, // 10 seconds for Firestore saves
+  FIRESTORE_SAVE: 2000, // 2 seconds for Firestore saves (reduced from 10s for better responsiveness)
   EMAIL_CAPTURE: 3000, // 3 seconds before showing email modal
 } as const;
 
