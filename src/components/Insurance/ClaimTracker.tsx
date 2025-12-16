@@ -27,7 +27,6 @@ export const ClaimTracker: React.FC<ClaimTrackerProps> = ({
     // Calculate statistics
     const totalClaims = claims.length;
     const settledClaims = claims.filter(c => c.status === 'settled');
-    const totalClaimAmount = claims.reduce((sum, c) => sum + (c.claimAmount || 0), 0);
     const totalSettledAmount = settledClaims.reduce((sum, c) => sum + (c.settledAmount || 0), 0);
     const settlementRatio = totalClaims > 0 ? (settledClaims.length / totalClaims) * 100 : 0;
     const averageSettlementTime = settledClaims.length > 0

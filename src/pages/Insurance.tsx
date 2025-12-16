@@ -4,7 +4,6 @@ import {
   Shield,
   Plus,
   TrendingUp,
-  AlertCircle,
   FileText,
   ArrowLeft,
   Bell,
