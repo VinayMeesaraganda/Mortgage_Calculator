@@ -305,33 +305,33 @@ const Insurance: React.FC = () => {
             Back to Dashboard
           </Link>
 
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">Insurance Tracker</h1>
-              <p className="text-slate-500 mt-1">Track policies, manage renewals, and optimize coverage</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Insurance Tracker</h1>
+              <p className="text-sm sm:text-base text-slate-500 mt-1">Track policies, manage renewals, and optimize coverage</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isSaving && <span className="text-sm text-gray-500 self-center">Saving...</span>}
               <button
                 onClick={() => exportToCSV(insurances, claims)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center gap-2 transition-colors"
+                className="flex-1 sm:flex-none px-4 py-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors min-h-[44px]"
                 title="Export to CSV"
               >
                 <Download size={18} />
-                <span className="hidden sm:inline">Export</span>
+                <span>Export</span>
               </button>
               <button
                 onClick={printPortfolio}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center gap-2 transition-colors"
+                className="flex-1 sm:flex-none px-4 py-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors min-h-[44px]"
                 title="Print"
               >
                 <Printer size={18} />
-                <span className="hidden sm:inline">Print</span>
+                <span>Print</span>
               </button>
               <button
                 onClick={() => setIsAddModalOpen(true)}
                 disabled={isLoading}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 flex items-center gap-2 transition-transform active:scale-95"
+                className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 flex items-center justify-center gap-2 transition-transform active:scale-95 min-h-[44px]"
               >
                 <Plus size={20} /> Add Policy
               </button>
@@ -340,7 +340,7 @@ const Insurance: React.FC = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -391,30 +391,30 @@ const Insurance: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
             onClick={() => setActiveTab('policies')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'policies'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            className={`flex-shrink-0 px-6 py-3 rounded-lg font-medium transition-colors min-h-[44px] ${activeTab === 'policies'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
           >
             Policies
           </button>
           <button
             onClick={() => setActiveTab('claims')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'claims'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            className={`flex-shrink-0 px-6 py-3 rounded-lg font-medium transition-colors min-h-[44px] ${activeTab === 'claims'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
           >
             Claims ({claims.length})
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'analytics'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            className={`flex-shrink-0 px-6 py-3 rounded-lg font-medium transition-colors min-h-[44px] ${activeTab === 'analytics'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
           >
             Analytics
@@ -435,10 +435,10 @@ const Insurance: React.FC = () => {
         ) : (
           <>
             {/* Category Filter */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-4 py-2 rounded-xl font-semibold text-sm whitespace-nowrap transition-all ${selectedCategory === 'all'
+                className={`flex-shrink-0 px-4 py-3 rounded-xl font-semibold text-sm whitespace-nowrap transition-all min-h-[44px] ${selectedCategory === 'all'
                   ? 'bg-slate-800 text-white shadow-lg'
                   : 'bg-white text-slate-600 hover:bg-slate-100'
                   }`}
@@ -452,7 +452,7 @@ const Insurance: React.FC = () => {
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`px-4 py-2 rounded-xl font-semibold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${selectedCategory === category
+                    className={`flex-shrink-0 px-4 py-3 rounded-xl font-semibold text-sm whitespace-nowrap transition-all flex items-center gap-2 min-h-[44px] ${selectedCategory === category
                       ? `${INSURANCE_COLORS[category].accent} text-white shadow-lg`
                       : 'bg-white text-slate-600 hover:bg-slate-100'
                       }`}
