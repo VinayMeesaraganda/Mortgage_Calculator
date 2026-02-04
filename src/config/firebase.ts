@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 // Firebase configuration
 // Note: Firebase API keys are public by design and safe to expose in client-side code.
@@ -56,17 +57,19 @@ const firebaseConfig = {
   measurementId
 };
 
-// Debug: Log config (without sensitive data) - works in both dev and production
-console.log('Firebase Config Status:', {
-  apiKey: apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING',
-  authDomain: authDomain || 'MISSING',
-  projectId: projectId || 'MISSING',
-  hasApiKey: !!apiKey,
-  apiKeyLength: apiKey?.length || 0,
-  apiKeyValid: apiKey?.startsWith('AIza') || false,
-  environment: import.meta.env.MODE,
-  isProduction: import.meta.env.PROD
-});
+// Debug: Log config (without sensitive data) - only in dev
+if (import.meta.env.DEV) {
+  console.log('Firebase Config Status:', {
+    apiKey: apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING',
+    authDomain: authDomain || 'MISSING',
+    projectId: projectId || 'MISSING',
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey?.length || 0,
+    apiKeyValid: apiKey?.startsWith('AIza') || false,
+    environment: import.meta.env.MODE,
+    isProduction: import.meta.env.PROD
+  });
+}
 
 // Initialize Firebase
 let app;
@@ -91,6 +94,21 @@ export const auth = getAuth(app);
 // Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
 
+// Initialize App Check if configured
+const appCheckKey = import.meta.env.VITE_FIREBASE_APPCHECK_KEY;
+if (typeof window !== 'undefined' && appCheckKey) {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(appCheckKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('Firebase App Check initialization skipped:', error);
+    }
+  }
+}
+
 // Initialize Analytics (only in browser environment)
 let analytics: ReturnType<typeof getAnalytics> | undefined;
 if (typeof window !== 'undefined') {
@@ -98,10 +116,11 @@ if (typeof window !== 'undefined') {
     analytics = getAnalytics(app);
   } catch (error) {
     // Analytics already initialized or not available
-    console.warn('Firebase Analytics initialization skipped:', error);
+    if (import.meta.env.DEV) {
+      console.warn('Firebase Analytics initialization skipped:', error);
+    }
   }
 }
 
 export { analytics };
 export default app;
-

@@ -43,20 +43,9 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
       // In production, send to your email service (e.g., SendGrid, Mailchimp, etc.)
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Store locally for now
-      const userData = {
-        email,
-        name,
-        subscribeNewsletter,
-        calculationSummary,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Save to localStorage (in production, send to your backend)
-      const existingData = JSON.parse(localStorage.getItem('emailCaptureData') || '[]');
-      existingData.push(userData);
-      localStorage.setItem('emailCaptureData', JSON.stringify(existingData));
-      
+      // In production, send to your email service (e.g., SendGrid, Mailchimp, etc.)
+      // Avoid storing PII locally to reduce exfiltration risk.
+
       setIsSuccess(true);
       
       // Close after 2 seconds
@@ -227,4 +216,3 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
 };
 
 export default memo(EmailCaptureModal);
-

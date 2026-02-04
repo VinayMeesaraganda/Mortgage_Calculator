@@ -7,8 +7,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Usernames collection (create-once)
+
+    // Username lookup (create-once)
     match /usernames/{username} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
@@ -16,22 +16,22 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
-    
+
     // Mutual Funds collection
     match /mutualFunds/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Mortgages collection - CRITICAL for mortgage tracking
+
+    // Mortgages collection
     match /mortgages/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
+
     // Stock Holdings collection
     match /stockHoldings/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
+
     // Deny all other access (MUST BE LAST)
     match /{document=**} {
       allow read, write: if false;

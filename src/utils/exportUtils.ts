@@ -31,7 +31,7 @@ export const exportToCSV = (insurances: Insurance[], claims: Claim[]) => {
 
     const insuranceCSV = [
         insuranceHeaders.join(','),
-        ...insuranceRows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ...insuranceRows.map(row => row.map(cell => `"${sanitizeCSVCell(cell)}"`).join(','))
     ].join('\n');
 
     // Export Claims
@@ -61,7 +61,7 @@ export const exportToCSV = (insurances: Insurance[], claims: Claim[]) => {
 
     const claimCSV = [
         claimHeaders.join(','),
-        ...claimRows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ...claimRows.map(row => row.map(cell => `"${sanitizeCSVCell(cell)}"`).join(','))
     ].join('\n');
 
     // Download both files
@@ -86,4 +86,13 @@ const downloadCSV = (csvContent: string, filename: string) => {
 
 export const printPortfolio = () => {
     window.print();
+};
+
+const sanitizeCSVCell = (value: unknown) => {
+    const stringValue = String(value ?? '');
+    // Prevent CSV formula injection in Excel/Sheets
+    if (/^[=+\-@]/.test(stringValue)) {
+        return `'${stringValue}`;
+    }
+    return stringValue;
 };
