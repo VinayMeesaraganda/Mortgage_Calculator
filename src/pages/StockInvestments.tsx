@@ -1,15 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { TrendingUp, ArrowLeft, Plus, Edit2, Trash2, X, Check, RefreshCw, DollarSign, ShoppingCart, Filter, ChevronDown, ChevronUp, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import type { StockHolding, StockTransaction, StockHoldingSummary } from '../types/stock';
 import type { Currency } from '../types/mortgage';
 import { formatCurrency, setGlobalCurrency } from '../utils/formatting';
-import { formatCurrencyValue } from '../utils/currency';
-import { CURRENCY_DATA } from '../utils/currency';
-import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
-import { HelpTooltip } from '../components/HelpTooltip';
-import { DatePicker } from '../components/DatePicker';
-import CurrencySelector from '../components/CurrencySelector';
+import StockAddForm from '../components/StockInvestments/StockAddForm';
+import StockHoldingsTable from '../components/StockInvestments/StockHoldingsTable';
+import StockInvestmentsHeader from '../components/StockInvestments/StockInvestmentsHeader';
+import StockPortfolioSummaryCards from '../components/StockInvestments/StockPortfolioSummaryCards';
+import StockTransactionsTable from '../components/StockInvestments/StockTransactionsTable';
 import { useToast } from '../components/Toast';
 import { fetchStockPrice, fetchMultipleStockPrices } from '../services/yahooFinanceService';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,7 +24,6 @@ const StockInvestments: React.FC = () => {
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isInitialLoadRef = useRef(true);
-  const [editingHoldingId, setEditingHoldingId] = useState<string | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'sold'>('active');
   const [transactionSearchQuery, setTransactionSearchQuery] = useState('');
@@ -53,24 +49,11 @@ const StockInvestments: React.FC = () => {
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const [isRefreshingAllPrices, setIsRefreshingAllPrices] = useState(false);
   
-  // Inline transaction form state (for adding transactions directly in grid)
-  const [inlineAddHoldingId, setInlineAddHoldingId] = useState<string | null>(null);
-  const [inlineTransactionType, setInlineTransactionType] = useState<'buy' | 'sell'>('buy');
-  const [inlineTransactionPrice, setInlineTransactionPrice] = useState('');
-  const [inlineTransactionQuantity, setInlineTransactionQuantity] = useState('');
-  const [inlineTransactionDate, setInlineTransactionDate] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  });
-  
   // Edit transaction form state
   const [editTransactionPrice, setEditTransactionPrice] = useState('');
   const [editTransactionQuantity, setEditTransactionQuantity] = useState('');
   const [editTransactionDate, setEditTransactionDate] = useState('');
   const [editTransactionType, setEditTransactionType] = useState<'buy' | 'sell'>('buy');
-  
-  // Track which holding's transactions dropdown is open
-  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
 
   // Update global currency when selected currency changes
   React.useEffect(() => {
@@ -650,55 +633,6 @@ const StockInvestments: React.FC = () => {
     }
   }, [holdings, handleDeleteHolding, successToast, saveHoldingsImmediately]);
 
-  // Update holding current price
-  const handleUpdateCurrentPrice = useCallback((holdingId: string, newPrice: number) => {
-    setHoldings(holdings.map(h => 
-      h.id === holdingId ? { ...h, currentPrice: newPrice, manualPrice: true } : h
-    ));
-    setEditingHoldingId(null);
-    successToast('Price updated');
-  }, [holdings, successToast]);
-
-  // Toggle manual/auto price mode
-  const handleTogglePriceMode = useCallback(async (holdingId: string) => {
-    const holding = holdings.find(h => h.id === holdingId);
-    if (!holding) return;
-
-    if (holding.manualPrice) {
-      // Switch to auto-fetch
-      setIsFetchingPrice(true);
-      const result = await fetchStockPrice(holding.symbol, holding.isSME);
-      setIsFetchingPrice(false);
-
-      if (result.success) {
-        const now = new Date();
-        setHoldings(holdings.map(h => 
-          h.id === holdingId 
-            ? { 
-                ...h, 
-                currentPrice: result.price,
-                previousClose: result.previousClose,
-                openingPrice: result.open,
-                manualPrice: false, 
-                lastFetched: now.toISOString(),
-                lastFetchedDate: now.toISOString().split('T')[0],
-                exchange: result.exchange
-              } 
-            : h
-        ));
-        successToast('Switched to auto-fetch mode');
-      } else {
-        errorToast(result.error || 'Failed to fetch price');
-      }
-    } else {
-      // Switch to manual
-      setHoldings(holdings.map(h => 
-        h.id === holdingId ? { ...h, manualPrice: true } : h
-      ));
-      successToast('Switched to manual mode');
-    }
-  }, [holdings, successToast, errorToast]);
-
   // Update transaction
   const handleUpdateTransaction = useCallback((
     holdingId: string,
@@ -764,71 +698,6 @@ const StockInvestments: React.FC = () => {
     saveHoldingsImmediately(updatedHoldings);
   }, [holdings, successToast, saveHoldingsImmediately]);
 
-  // Add transaction inline (directly in transactions grid)
-  const handleAddInlineTransaction = useCallback((holdingId: string) => {
-    const price = parseFloat(inlineTransactionPrice.replace(/[^0-9.]/g, ''));
-    const quantity = parseFloat(inlineTransactionQuantity.replace(/[^0-9.]/g, ''));
-
-    if (isNaN(price) || isNaN(quantity) || quantity <= 0 || price <= 0) {
-      warning('Please enter valid price and quantity');
-      return;
-    }
-
-    const holding = holdings.find(h => h.id === holdingId);
-    if (!holding) return;
-
-    const newTransaction: StockTransaction = {
-      id: `transaction-${Date.now()}-${Math.random()}`,
-      date: inlineTransactionDate,
-      type: inlineTransactionType,
-      price,
-      quantity
-    };
-
-    const updatedTransactions = [...holding.transactions, newTransaction];
-
-    // Update purchases if it's a buy
-    const updatedPurchases = inlineTransactionType === 'buy'
-      ? [...holding.purchases, {
-          id: newTransaction.id,
-          purchaseDate: inlineTransactionDate,
-          purchasePrice: price,
-          quantity
-        }]
-      : holding.purchases;
-
-    // Recalculate status
-    const totalBought = updatedTransactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.quantity, 0);
-    const totalSold = updatedTransactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.quantity, 0);
-    const newStatus: 'active' | 'sold' = totalBought <= totalSold ? 'sold' : 'active';
-
-    const updatedHoldings = holdings.map(h =>
-      h.id === holdingId
-        ? {
-            ...h,
-            transactions: updatedTransactions,
-            purchases: updatedPurchases,
-            status: newStatus,
-            soldDate: newStatus === 'sold' ? inlineTransactionDate : undefined
-          }
-        : h
-    );
-    setHoldings(updatedHoldings);
-
-    // Reset inline form
-    setInlineAddHoldingId(null);
-    setInlineTransactionPrice('');
-    setInlineTransactionQuantity('');
-    setInlineTransactionType('buy');
-    setInlineTransactionDate(() => {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    });
-    successToast(`${inlineTransactionType === 'buy' ? 'Buy' : 'Sell'} transaction added`);
-    // Save immediately after adding inline transaction
-    saveHoldingsImmediately(updatedHoldings);
-  }, [holdings, inlineTransactionPrice, inlineTransactionQuantity, inlineTransactionDate, inlineTransactionType, warning, successToast, saveHoldingsImmediately]);
-
   // Start editing a transaction
   const handleStartEditTransaction = useCallback((holdingId: string, transactionId: string) => {
     const holding = holdings.find(h => h.id === holdingId);
@@ -846,1082 +715,93 @@ const StockInvestments: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link 
-            to="/" 
-            className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Home
-          </Link>
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl md:text-4xl font-serif font-bold text-slate-800 tracking-tight flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                <TrendingUp className="w-6 h-6 text-white" />
-              </div>
-              Stock Investments
-            </h1>
-            <div className="flex items-center gap-3">
-              {(isLoadingHoldings || isSavingHoldings) && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  {isLoadingHoldings && (
-                    <span className="flex items-center gap-1">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Loading...
-                    </span>
-                  )}
-                  {isSavingHoldings && (
-                    <span className="flex items-center gap-1">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </span>
-                  )}
-                </div>
-              )}
-              <button
-                onClick={() => refreshAllPrices()}
-                disabled={isRefreshingAllPrices}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
-                title="Refresh all stock prices"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshingAllPrices ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-              <CurrencySelector 
-                selectedCurrency={selectedCurrency}
-                onCurrencyChange={setSelectedCurrency}
-              />
-            </div>
-          </div>
-        </div>
-      </header>
+      <StockInvestmentsHeader
+        isLoadingHoldings={isLoadingHoldings}
+        isSavingHoldings={isSavingHoldings}
+        isRefreshingAllPrices={isRefreshingAllPrices}
+        onRefreshAllPrices={() => refreshAllPrices()}
+        selectedCurrency={selectedCurrency}
+        onCurrencyChange={setSelectedCurrency}
+      />
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Portfolio Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Total Invested</h3>
-              <p className="text-lg font-bold text-slate-800 leading-tight">{formatCurrencyValue(Math.round(portfolioTotals.totalInvested), selectedCurrency, false)}</p>
-            </div>
-          </div>
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Current Value</h3>
-              <p className="text-lg font-bold text-slate-800 leading-tight">
-                {formatCurrencyValue(Math.round(portfolioTotals.totalCurrentValue), selectedCurrency, false)}
-              </p>
-            </div>
-          </div>
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Unrealized P&L</h3>
-              <p className={`text-lg font-bold leading-tight ${portfolioTotals.totalUnrealizedGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrencyValue(Math.round(portfolioTotals.totalUnrealizedGainLoss), selectedCurrency, false)}
-                <span className={`text-xs font-medium ml-1 ${portfolioTotals.totalUnrealizedGainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ({portfolioTotals.totalUnrealizedGainLossPercent >= 0 ? '+' : ''}{portfolioTotals.totalUnrealizedGainLossPercent.toFixed(2)}%)
-                </span>
-              </p>
-            </div>
-          </div>
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Realized P&L</h3>
-              <p className={`text-lg font-bold leading-tight ${portfolioTotals.totalRealizedGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrencyValue(Math.round(portfolioTotals.totalRealizedGainLoss), selectedCurrency, false)}
-                {portfolioTotals.totalInvested > 0 && (
-                  <span className={`text-xs font-medium ml-1 ${portfolioTotals.totalRealizedGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ({((portfolioTotals.totalRealizedGainLoss / portfolioTotals.totalInvested) * 100).toFixed(2)}%)
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Total Gain/Loss</h3>
-              <p className={`text-lg font-bold leading-tight ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrencyValue(Math.round(portfolioTotals.totalGainLoss), selectedCurrency, false)}
-                <span className={`text-xs font-medium ml-1 ${portfolioTotals.totalGainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ({portfolioTotals.totalGainLossPercent >= 0 ? '+' : ''}{portfolioTotals.totalGainLossPercent.toFixed(2)}%)
-                </span>
-              </p>
-            </div>
-          </div>
-          <div className={CARD_STYLE} style={CARD_SHADOW}>
-            <div className="pl-3 pr-2 py-3">
-              <h3 className="text-xs font-semibold text-slate-600 mb-1.5">Daily P&L</h3>
-              <p className={`text-lg font-bold leading-tight ${portfolioTotals.totalDailyPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrencyValue(Math.round(portfolioTotals.totalDailyPL), selectedCurrency, false)}
-                <span className={`text-xs font-medium ml-1 ${portfolioTotals.totalDailyPLPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ({portfolioTotals.totalDailyPLPercent >= 0 ? '+' : ''}{portfolioTotals.totalDailyPLPercent.toFixed(2)}%)
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
+        <StockPortfolioSummaryCards
+          portfolioTotals={portfolioTotals}
+          selectedCurrency={selectedCurrency}
+        />
 
-        {/* Filter and Add Form */}
-        <div className={CARD_STYLE} style={CARD_SHADOW}>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                  {showAddForm ? (newTransactionType === 'buy' ? <ShoppingCart className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />) : <Filter className="w-5 h-5" />}
-                  {showAddForm ? (addingTransactionToHoldingId ? `${newTransactionType === 'buy' ? 'Buy' : 'Sell'} ${newStockSymbol}` : 'Add Stock to Portfolio') : 'Portfolio Tracker'}
-                </h2>
-                {!showAddForm && (
-                  <div className="flex items-center gap-2 ml-4">
-                    <button
-                      onClick={() => setFilterStatus('active')}
-                      className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition-all ${filterStatus === 'active' ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
-                    >
-                      Active
-                    </button>
-                    <button
-                      onClick={() => setFilterStatus('sold')}
-                      className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition-all ${filterStatus === 'sold' ? 'bg-red-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
-                    >
-                      Sold
-                    </button>
-                    <button
-                      onClick={() => setFilterStatus('all')}
-                      className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition-all ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
-                    >
-                      All
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  setShowAddForm(!showAddForm);
-                  if (showAddForm) {
-                    setAddingTransactionToHoldingId(null);
-                    setNewTransactionType('buy');
-                  }
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2"
-              >
-                {showAddForm ? (
-                  <>
-                    <X className="w-4 h-4" />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Add Stock
-                  </>
-                )}
-              </button>
-            </div>
+        <StockAddForm
+          showAddForm={showAddForm}
+          onToggleShowForm={() => {
+            setShowAddForm(!showAddForm);
+            if (showAddForm) {
+              setAddingTransactionToHoldingId(null);
+              setNewTransactionType('buy');
+            }
+          }}
+          filterStatus={filterStatus}
+          onFilterStatusChange={setFilterStatus}
+          addingTransactionToHoldingId={addingTransactionToHoldingId}
+          newTransactionType={newTransactionType}
+          setNewTransactionType={setNewTransactionType}
+          newStockSymbol={newStockSymbol}
+          setNewStockSymbol={setNewStockSymbol}
+          newStockIsSME={newStockIsSME}
+          setNewStockIsSME={setNewStockIsSME}
+          newStockCurrentPrice={newStockCurrentPrice}
+          setNewStockCurrentPrice={setNewStockCurrentPrice}
+          manualPriceEntry={manualPriceEntry}
+          setManualPriceEntry={setManualPriceEntry}
+          onFetchPrice={() => {
+            if (!newStockSymbol.trim()) {
+              warning('Please enter stock symbol first');
+              return;
+            }
+            fetchPrice(newStockSymbol.trim(), newStockIsSME);
+          }}
+          isFetchingPrice={isFetchingPrice}
+          selectedCurrency={selectedCurrency}
+          newTransactionPrice={newTransactionPrice}
+          setNewTransactionPrice={setNewTransactionPrice}
+          newTransactionQuantity={newTransactionQuantity}
+          setNewTransactionQuantity={setNewTransactionQuantity}
+          newTransactionDate={newTransactionDate}
+          setNewTransactionDate={setNewTransactionDate}
+          onAddTransaction={handleAddTransaction}
+        />
 
-            {showAddForm && (
-              <div className="bg-slate-50 rounded-lg p-3 border-2 border-green-200">
-                {addingTransactionToHoldingId && (
-                  <div className="mb-3 p-2 bg-green-100 rounded border border-green-300">
-                    <p className="text-xs font-semibold text-green-800">
-                      {newTransactionType === 'buy' ? 'Buying' : 'Selling'}: <span className="font-bold">{newStockSymbol}</span>
-                    </p>
-                  </div>
-                )}
-                
-                {/* Transaction Type Selector (for existing stocks) */}
-                {addingTransactionToHoldingId && (
-                  <div className="mb-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setNewTransactionType('buy')}
-                        className={`flex-1 px-3 py-2 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-1.5 ${
-                          newTransactionType === 'buy' 
-                            ? 'bg-green-600 text-white shadow-md' 
-                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                        }`}
-                      >
-                        <ShoppingCart className="w-4 h-4" />
-                        Buy
-                      </button>
-                      <button
-                        onClick={() => setNewTransactionType('sell')}
-                        className={`flex-1 px-3 py-2 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-1.5 ${
-                          newTransactionType === 'sell' 
-                            ? 'bg-red-600 text-white shadow-md' 
-                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                        }`}
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        Sell
-                      </button>
-                    </div>
-                  </div>
-                )}
+        <StockHoldingsTable
+          sortedHoldings={sortedHoldings}
+          stocksSortColumn={stocksSortColumn}
+          stocksSortDirection={stocksSortDirection}
+          onSort={handleSort}
+        />
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Symbol <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={newStockSymbol}
-                        onChange={(e) => setNewStockSymbol(e.target.value.toUpperCase())}
-                        placeholder="RELIANCE"
-                        disabled={!!addingTransactionToHoldingId}
-                        className={`${INPUT_STYLE} flex-1 text-sm ${addingTransactionToHoldingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                        maxLength={50}
-                      />
-                      {!addingTransactionToHoldingId && (
-                        <label className="flex items-center gap-1 px-2 py-1.5 bg-white border border-slate-300 rounded text-xs cursor-pointer hover:border-green-500 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={newStockIsSME}
-                            onChange={(e) => setNewStockIsSME(e.target.checked)}
-                            className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
-                          />
-                          <span className="text-xs font-medium text-slate-700">SME</span>
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Current Price <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={newStockCurrentPrice}
-                        onChange={(e) => setNewStockCurrentPrice(e.target.value)}
-                        placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
-                        disabled={!manualPriceEntry && !!newStockSymbol.trim()}
-                        className={`${INPUT_STYLE} flex-1 text-sm`}
-                      />
-                      {!addingTransactionToHoldingId && (
-                        <button
-                          onClick={() => {
-                            if (!newStockSymbol.trim()) {
-                              warning('Please enter stock symbol first');
-                              return;
-                            }
-                            fetchPrice(newStockSymbol.trim(), newStockIsSME);
-                          }}
-                          disabled={isFetchingPrice || manualPriceEntry}
-                          className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Fetch price"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isFetchingPrice ? 'animate-spin' : ''}`} />
-                        </button>
-                      )}
-                    </div>
-                    {!addingTransactionToHoldingId && (
-                      <label className="flex items-center gap-1 mt-1">
-                        <input
-                          type="checkbox"
-                          checked={manualPriceEntry}
-                          onChange={(e) => setManualPriceEntry(e.target.checked)}
-                          className="w-3 h-3 text-green-600 rounded focus:ring-green-500"
-                        />
-                        <span className="text-xs text-slate-600">Manual</span>
-                      </label>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      {newTransactionType === 'buy' ? 'Buy' : 'Sell'} Price <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newTransactionPrice}
-                      onChange={(e) => setNewTransactionPrice(e.target.value)}
-                      placeholder={`${CURRENCY_DATA[selectedCurrency].symbol}0.00`}
-                      className={`${INPUT_STYLE} text-sm`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Quantity <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newTransactionQuantity}
-                      onChange={(e) => setNewTransactionQuantity(e.target.value)}
-                      placeholder="0"
-                      className={`${INPUT_STYLE} text-sm`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Date <span className="text-red-500">*</span>
-                    </label>
-                    <DatePicker
-                      value={newTransactionDate}
-                      onChange={setNewTransactionDate}
-                    />
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleAddTransaction}
-                  className={`w-full px-4 py-2 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-                    newTransactionType === 'buy' 
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' 
-                      : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
-                  } text-white`}
-                >
-                  <Check className="w-4 h-4" />
-                  {newTransactionType === 'buy' ? 'Buy Stock' : 'Sell Stock'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Current Stocks Table */}
-        <div className={CARD_STYLE} style={{ ...CARD_SHADOW, marginBottom: '2rem' }}>
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Current Stocks</h2>
-            {sortedHoldings.length === 0 ? (
-              <div className="text-center py-8">
-                <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500">No stocks in portfolio</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 border-b-2 border-slate-300">
-                      <th 
-                        className="text-left p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('symbol')}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>Stock Name</span>
-                          {stocksSortColumn === 'symbol' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('shares')}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <span>Shares</span>
-                          {stocksSortColumn === 'shares' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('avgPrice')}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <span>Avg Price</span>
-                          {stocksSortColumn === 'avgPrice' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('currentPrice')}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <span>Current Price</span>
-                          {stocksSortColumn === 'currentPrice' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('gainLoss')}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <span>Gain/Loss</span>
-                          {stocksSortColumn === 'gainLoss' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right p-3 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition-colors select-none"
-                        onClick={() => handleSort('dailyPL')}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <span>Daily P&L</span>
-                          {stocksSortColumn === 'dailyPL' && (
-                            stocksSortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedHoldings.map((summary) => {
-                      const { holding } = summary;
-                      return (
-                        <tr key={holding.id} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                          <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-800">{holding.symbol}</span>
-                              {holding.isSME && (
-                                <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded">SME</span>
-                              )}
-                              {holding.status === 'sold' && (
-                                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded">SOLD</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3 text-right text-sm font-semibold text-slate-700">{summary.totalQuantity}</td>
-                          <td className="p-3 text-right text-sm font-semibold text-slate-700">{formatCurrency(summary.averageCostBasis)}</td>
-                          <td className="p-3 text-right text-sm font-semibold text-slate-700">{formatCurrency(holding.currentPrice)}</td>
-                          <td className="p-3 text-right">
-                            <div className="text-sm font-bold" style={{ color: summary.gainLoss >= 0 ? '#16a34a' : '#dc2626' }}>
-                              {formatCurrency(summary.gainLoss)}
-                            </div>
-                            <div className="text-xs font-semibold" style={{ color: summary.gainLossPercent >= 0 ? '#16a34a' : '#dc2626' }}>
-                              ({summary.gainLossPercent >= 0 ? '+' : ''}{summary.gainLossPercent.toFixed(2)}%)
-                            </div>
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="text-sm font-bold" style={{ color: summary.dailyPL >= 0 ? '#16a34a' : '#dc2626' }}>
-                              {formatCurrency(summary.dailyPL)}
-                            </div>
-                            <div className="text-xs font-semibold" style={{ color: summary.dailyPLPercent >= 0 ? '#16a34a' : '#dc2626' }}>
-                              ({summary.dailyPLPercent >= 0 ? '+' : ''}{summary.dailyPLPercent.toFixed(2)}%)
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* All Transactions Table */}
-        <div className={CARD_STYLE} style={CARD_SHADOW}>
-          <div className="p-6">
-            <button
-              onClick={() => setIsTransactionsExpanded(!isTransactionsExpanded)}
-              className="w-full flex items-center justify-between mb-4 hover:bg-slate-50 -m-2 p-2 rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                {isTransactionsExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-slate-600" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-slate-600" />
-                )}
-                <h2 className="text-xl font-bold text-slate-800">All Transactions</h2>
-                <span className="text-sm text-slate-500 font-normal">({filteredTransactions.length})</span>
-              </div>
-              {isTransactionsExpanded && (
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={transactionSearchQuery}
-                      onChange={(e) => setTransactionSearchQuery(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Search by stock name..."
-                      className="pl-10 pr-4 py-2 border-2 border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  {transactionSearchQuery && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTransactionSearchQuery('');
-                      }}
-                      className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
-            </button>
-            {isTransactionsExpanded && (
-              <>
-                {filteredTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500">
-                  {transactionSearchQuery ? 'No transactions found for this search' : 'No transactions yet'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 border-b-2 border-slate-300">
-                      <th className="text-left p-3 text-sm font-bold text-slate-700">Date</th>
-                      <th className="text-left p-3 text-sm font-bold text-slate-700">Stock Name</th>
-                      <th className="text-center p-3 text-sm font-bold text-slate-700">Type</th>
-                      <th className="text-right p-3 text-sm font-bold text-slate-700">Price</th>
-                      <th className="text-right p-3 text-sm font-bold text-slate-700">Quantity</th>
-                      <th className="text-right p-3 text-sm font-bold text-slate-700">Value</th>
-                      <th className="text-center p-3 text-sm font-bold text-slate-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.map((transaction) => {
-                      const transValue = transaction.price * transaction.quantity;
-                      const isEditing = editingTransactionId === transaction.id;
-                      
-                      return (
-                        <tr key={transaction.id} className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${transaction.type === 'buy' ? 'bg-green-50/30' : 'bg-red-50/30'}`}>
-                          <td className="p-3 text-sm font-semibold text-slate-700">{transaction.date}</td>
-                          <td className="p-3">
-                            <span className="font-bold text-slate-800">{transaction.stockSymbol}</span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              transaction.type === 'buy' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {transaction.type.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right text-sm font-semibold text-slate-700">{formatCurrency(transaction.price)}</td>
-                          <td className="p-3 text-right text-sm font-semibold text-slate-700">{transaction.quantity}</td>
-                          <td className="p-3 text-right text-sm font-bold text-slate-800">{formatCurrency(transValue)}</td>
-                          <td className="p-3">
-                            <div className="flex items-center justify-center gap-1">
-                              {isEditing ? (
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => {
-                                      const price = parseFloat(editTransactionPrice.replace(/[^0-9.]/g, ''));
-                                      const quantity = parseFloat(editTransactionQuantity.replace(/[^0-9.]/g, ''));
-                                      if (!isNaN(price) && !isNaN(quantity) && quantity > 0 && price > 0) {
-                                        handleUpdateTransaction(transaction.stockId, transaction.id, {
-                                          type: editTransactionType,
-                                          price,
-                                          quantity,
-                                          date: editTransactionDate
-                                        });
-                                      } else {
-                                        warning('Please enter valid price and quantity');
-                                      }
-                                    }}
-                                    className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors"
-                                    title="Save"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingTransactionId(null);
-                                      setEditTransactionPrice('');
-                                      setEditTransactionQuantity('');
-                                      setEditTransactionDate('');
-                                    }}
-                                    className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                                    title="Cancel"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => handleStartEditTransaction(transaction.stockId, transaction.id)}
-                                    className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                                    title="Edit transaction"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteTransaction(transaction.stockId, transaction.id)}
-                                    className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                                    title="Delete transaction"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Old Holdings List - Removed */}
-        {false && filteredHoldings.length === 0 ? (
-          <div></div>
-        ) : (
-          <div style={{ display: 'none' }}>
-            {filteredHoldings.map((summary) => {
-              const { holding } = summary;
-              const isEditingPrice = editingHoldingId === holding.id;
-
-              return (
-                <div key={holding.id} className={CARD_STYLE} style={CARD_SHADOW}>
-                  <div className="p-6">
-                    {/* Stock Header */}
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-lg ${holding.status === 'sold' ? 'bg-gradient-to-br from-slate-400 to-slate-500' : 'bg-gradient-to-br from-green-500 to-emerald-600'} flex items-center justify-center shadow-lg relative`}>
-                          <span className="text-white font-bold text-xs">{holding.symbol.substring(0, 4)}</span>
-                          {holding.isSME && (
-                            <div className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] font-bold px-1 rounded">SME</div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-bold text-slate-800">{holding.symbol}</h3>
-                            {holding.status === 'sold' && (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded">SOLD</span>
-                            )}
-                            {holding.exchange && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">{holding.exchange}</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600">
-                            {summary.totalQuantity} {summary.totalQuantity === 1 ? 'share' : 'shares'} • 
-                            Avg Cost: {formatCurrency(summary.averageCostBasis)}
-                            {holding.lastFetched && !holding.manualPrice && (
-                              <span className="ml-2 text-xs text-slate-500">
-                                (Updated: {new Date(holding.lastFetched).toLocaleTimeString()})
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isEditingPrice ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              defaultValue={holding.currentPrice}
-                              onBlur={(e) => {
-                                const price = parseFloat(e.target.value.replace(/[^0-9.]/g, ''));
-                                if (!isNaN(price) && price > 0) {
-                                  handleUpdateCurrentPrice(holding.id, price);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  const price = parseFloat((e.target as HTMLInputElement).value.replace(/[^0-9.]/g, ''));
-                                  if (!isNaN(price) && price > 0) {
-                                    handleUpdateCurrentPrice(holding.id, price);
-                                  }
-                                } else if (e.key === 'Escape') {
-                                  setEditingHoldingId(null);
-                                }
-                              }}
-                              className="w-32 px-2 py-1 border-2 border-green-300 rounded text-sm"
-                              autoFocus
-                            />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="text-right">
-                              <p className="text-sm text-slate-600">Current Price</p>
-                              <p className="text-lg font-bold text-slate-800">{formatCurrency(holding.currentPrice)}</p>
-                              <label className="flex items-center gap-1 text-xs text-slate-600 mt-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={holding.manualPrice}
-                                  onChange={() => handleTogglePriceMode(holding.id)}
-                                  className="w-3 h-3"
-                                />
-                                Manual
-                              </label>
-                            </div>
-                            <button
-                              onClick={() => setEditingHoldingId(holding.id)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Edit current price"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handleDeleteHolding(holding.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete stock"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Stock Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-600 mb-1">Total Invested</p>
-                        <p className="text-sm font-bold text-slate-800">{formatCurrency(summary.totalInvested)}</p>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-600 mb-1">Current Value</p>
-                        <p className="text-sm font-bold text-slate-800">{formatCurrency(summary.currentValue)}</p>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-600 mb-1">Gain/Loss</p>
-                        <p className={`text-sm font-bold ${summary.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(summary.gainLoss)}
-                        </p>
-                        <p className={`text-xs font-semibold ${summary.gainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {summary.gainLossPercent >= 0 ? '+' : ''}{summary.gainLossPercent.toFixed(2)}%
-                        </p>
-                      </div>
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs text-slate-600 mb-1">Daily P&L</p>
-                        <p className={`text-sm font-bold ${summary.dailyPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(summary.dailyPL)}
-                        </p>
-                        <p className={`text-xs font-semibold ${summary.dailyPLPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {summary.dailyPLPercent >= 0 ? '+' : ''}{summary.dailyPLPercent.toFixed(2)}%
-                        </p>
-                      </div>
-                      {summary.realizedGainLoss !== 0 && (
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-xs text-slate-600 mb-1">Realized P&L</p>
-                          <p className={`text-sm font-bold ${summary.realizedGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(summary.realizedGainLoss)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Transactions List */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <button
-                          onClick={() => {
-                            const newExpanded = new Set(expandedTransactions);
-                            if (newExpanded.has(holding.id)) {
-                              newExpanded.delete(holding.id);
-                            } else {
-                              newExpanded.add(holding.id);
-                            }
-                            setExpandedTransactions(newExpanded);
-                          }}
-                          className="flex items-center gap-2 text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors"
-                        >
-                          {expandedTransactions.has(holding.id) ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                          <span>Transactions ({holding.transactions.length})</span>
-                          <HelpTooltip content="All buy and sell transactions for this stock" />
-                        </button>
-                        {holding.status === 'active' && inlineAddHoldingId !== holding.id && expandedTransactions.has(holding.id) && (
-                          <button
-                            onClick={() => {
-                              setInlineAddHoldingId(holding.id);
-                              setInlineTransactionType('buy');
-                              setInlineTransactionPrice('');
-                              setInlineTransactionQuantity('');
-                              setInlineTransactionDate(() => {
-                                const now = new Date();
-                                return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                              });
-                            }}
-                            className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" />
-                            Add Transaction
-                          </button>
-                        )}
-                      </div>
-                      {expandedTransactions.has(holding.id) && (
-                      <div className="space-y-2">
-                        {/* Inline Add Transaction Form */}
-                        {inlineAddHoldingId === holding.id && (
-                          <div className="rounded-lg p-3 border-2 border-blue-300 bg-blue-50">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="text-xs font-bold text-slate-700">Add New Transaction</h5>
-                              <button
-                                onClick={() => {
-                                  setInlineAddHoldingId(null);
-                                  setInlineTransactionPrice('');
-                                  setInlineTransactionQuantity('');
-                                }}
-                                className="p-1 text-slate-600 hover:bg-slate-200 rounded transition-colors"
-                                title="Cancel"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                              <div>
-                                <label className="block text-xs text-slate-600 mb-1">Type</label>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => setInlineTransactionType('buy')}
-                                    className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
-                                      inlineTransactionType === 'buy'
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                    }`}
-                                  >
-                                    Buy
-                                  </button>
-                                  <button
-                                    onClick={() => setInlineTransactionType('sell')}
-                                    className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
-                                      inlineTransactionType === 'sell'
-                                        ? 'bg-red-600 text-white'
-                                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                    }`}
-                                  >
-                                    Sell
-                                  </button>
-                                </div>
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-600 mb-1">Price</label>
-                                <input
-                                  type="text"
-                                  value={inlineTransactionPrice}
-                                  onChange={(e) => setInlineTransactionPrice(e.target.value)}
-                                  placeholder="0.00"
-                                  className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-600 mb-1">Quantity</label>
-                                <input
-                                  type="text"
-                                  value={inlineTransactionQuantity}
-                                  onChange={(e) => setInlineTransactionQuantity(e.target.value)}
-                                  placeholder="0"
-                                  className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-600 mb-1">Date</label>
-                                <DatePicker
-                                  value={inlineTransactionDate}
-                                  onChange={setInlineTransactionDate}
-                                />
-                              </div>
-                              <div className="flex items-end gap-1">
-                                <button
-                                  onClick={() => handleAddInlineTransaction(holding.id)}
-                                  className={`flex-1 px-2 py-1 text-xs font-semibold rounded text-white transition-all ${
-                                    inlineTransactionType === 'buy'
-                                      ? 'bg-green-600 hover:bg-green-700'
-                                      : 'bg-red-600 hover:bg-red-700'
-                                  }`}
-                                >
-                                  <Check className="w-3 h-3 inline" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setInlineAddHoldingId(null);
-                                    setInlineTransactionPrice('');
-                                    setInlineTransactionQuantity('');
-                                  }}
-                                  className="px-2 py-1 text-xs font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded transition-all"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {[...holding.transactions].sort((a, b) => {
-                          // Sort by date descending (newest first)
-                          const dateA = new Date(a.date).getTime();
-                          const dateB = new Date(b.date).getTime();
-                          return dateB - dateA;
-                        }).map((transaction) => {
-                          const transValue = transaction.price * transaction.quantity;
-                          const isEditing = editingTransactionId === transaction.id;
-
-                          return (
-                            <div key={transaction.id} className={`rounded-lg p-3 border-2 ${transaction.type === 'buy' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h5 className="text-xs font-bold text-slate-700">Edit Transaction</h5>
-                                    <button
-                                      onClick={() => {
-                                        setEditingTransactionId(null);
-                                        setEditTransactionPrice('');
-                                        setEditTransactionQuantity('');
-                                        setEditTransactionDate('');
-                                      }}
-                                      className="p-1 text-slate-600 hover:bg-slate-200 rounded transition-colors"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                                    <div>
-                                      <label className="block text-xs text-slate-600 mb-1">Type</label>
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => setEditTransactionType('buy')}
-                                          className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
-                                            editTransactionType === 'buy'
-                                              ? 'bg-green-600 text-white'
-                                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                          }`}
-                                        >
-                                          Buy
-                                        </button>
-                                        <button
-                                          onClick={() => setEditTransactionType('sell')}
-                                          className={`flex-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
-                                            editTransactionType === 'sell'
-                                              ? 'bg-red-600 text-white'
-                                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                          }`}
-                                        >
-                                          Sell
-                                        </button>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs text-slate-600 mb-1">Price</label>
-                                      <input
-                                        type="text"
-                                        value={editTransactionPrice}
-                                        onChange={(e) => setEditTransactionPrice(e.target.value)}
-                                        className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs text-slate-600 mb-1">Quantity</label>
-                                      <input
-                                        type="text"
-                                        value={editTransactionQuantity}
-                                        onChange={(e) => setEditTransactionQuantity(e.target.value)}
-                                        className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs text-slate-600 mb-1">Date</label>
-                                      <DatePicker
-                                        value={editTransactionDate}
-                                        onChange={setEditTransactionDate}
-                                      />
-                                    </div>
-                                    <div className="flex items-end gap-1">
-                                      <button
-                                        onClick={() => {
-                                          const price = parseFloat(editTransactionPrice.replace(/[^0-9.]/g, ''));
-                                          const quantity = parseFloat(editTransactionQuantity.replace(/[^0-9.]/g, ''));
-                                          if (!isNaN(price) && !isNaN(quantity) && quantity > 0 && price > 0) {
-                                            handleUpdateTransaction(holding.id, transaction.id, {
-                                              type: editTransactionType,
-                                              price,
-                                              quantity,
-                                              date: editTransactionDate
-                                            });
-                                          } else {
-                                            warning('Please enter valid price and quantity');
-                                          }
-                                        }}
-                                        className="flex-1 px-2 py-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded transition-all"
-                                      >
-                                        <Check className="w-3 h-3 inline" />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setEditingTransactionId(null);
-                                          setEditTransactionPrice('');
-                                          setEditTransactionQuantity('');
-                                          setEditTransactionDate('');
-                                        }}
-                                        className="px-2 py-1 text-xs font-semibold bg-slate-400 hover:bg-slate-500 text-white rounded transition-all"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-                                    <div>
-                                      <span className="text-slate-600">Type: </span>
-                                      <span className={`font-bold uppercase ${transaction.type === 'buy' ? 'text-green-700' : 'text-red-700'}`}>
-                                        {transaction.type}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-600">Price: </span>
-                                      <span className="font-semibold">{formatCurrency(transaction.price)}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-600">Qty: </span>
-                                      <span className="font-semibold">{transaction.quantity}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-600">Date: </span>
-                                      <span className="font-semibold">{transaction.date}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-600">Value: </span>
-                                      <span className="font-semibold">{formatCurrency(transValue)}</span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 ml-2">
-                                    <button
-                                      onClick={() => handleStartEditTransaction(holding.id, transaction.id)}
-                                      className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                                      title="Edit transaction"
-                                    >
-                                      <Edit2 className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteTransaction(holding.id, transaction.id)}
-                                      className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                                      title="Delete transaction"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <StockTransactionsTable
+          isTransactionsExpanded={isTransactionsExpanded}
+          onToggleExpanded={() => setIsTransactionsExpanded(!isTransactionsExpanded)}
+          filteredTransactions={filteredTransactions}
+          transactionSearchQuery={transactionSearchQuery}
+          setTransactionSearchQuery={setTransactionSearchQuery}
+          editingTransactionId={editingTransactionId}
+          setEditingTransactionId={setEditingTransactionId}
+          editTransactionPrice={editTransactionPrice}
+          setEditTransactionPrice={setEditTransactionPrice}
+          editTransactionQuantity={editTransactionQuantity}
+          setEditTransactionQuantity={setEditTransactionQuantity}
+          editTransactionDate={editTransactionDate}
+          setEditTransactionDate={setEditTransactionDate}
+          editTransactionType={editTransactionType}
+          setEditTransactionType={setEditTransactionType}
+          onStartEditTransaction={handleStartEditTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          onInvalidEdit={() => warning('Please enter valid price and quantity')}
+        />
       </main>
     </div>
+
   );
 };
 
 export default StockInvestments;
-
