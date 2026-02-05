@@ -27,6 +27,14 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const accountEmail = userProfile?.email || currentUser?.email || '';
+    if (accountEmail && !accountEmail.endsWith('@personal-finance.app')) {
+      setEmail(accountEmail);
+    }
+  }, [isOpen, userProfile, currentUser]);
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -218,10 +226,3 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
 };
 
 export default memo(EmailCaptureModal);
-  useEffect(() => {
-    if (!isOpen) return;
-    const accountEmail = userProfile?.email || currentUser?.email || '';
-    if (accountEmail && !accountEmail.endsWith('@personal-finance.app')) {
-      setEmail(accountEmail);
-    }
-  }, [isOpen, userProfile, currentUser]);

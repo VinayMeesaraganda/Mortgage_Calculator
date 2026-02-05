@@ -103,6 +103,12 @@ const Profile: React.FC = () => {
       subtitle="Manage your account details, security, and connected data."
     >
       <div className="space-y-6">
+        {isInternalEmail && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your account is still using a legacy internal email. Add a real email to enable password resets and email
+            delivery.
+          </div>
+        )}
         {(statusMessage || errorMessage) && (
           <div className={`rounded-xl border px-4 py-3 text-sm ${errorMessage ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
             {errorMessage || statusMessage}
@@ -130,6 +136,9 @@ const Profile: React.FC = () => {
                   Add a real email to enable password resets and email delivery.
                 </p>
               )}
+            </div>
+            <div className="text-xs text-slate-500 flex items-center">
+              We’ll send a verification link to the new email before updating it.
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">

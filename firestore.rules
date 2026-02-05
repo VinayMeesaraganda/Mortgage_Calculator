@@ -10,7 +10,7 @@ service cloud.firestore {
 
     // Username lookup (create-once)
     match /usernames/{username} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create: if request.auth != null
         && !exists(/databases/$(database)/documents/usernames/$(username))
         && request.resource.data.uid == request.auth.uid;

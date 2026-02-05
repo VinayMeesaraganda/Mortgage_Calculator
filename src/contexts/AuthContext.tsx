@@ -12,6 +12,7 @@ import {
   deleteUser,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  verifyBeforeUpdateEmail,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -65,17 +66,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const normalizeUsername = (username: string) => username.trim().toLowerCase();
 
-  const lookupEmailForUsername = async (username: string): Promise<string> => {
+  const lookupEmailForUsername = async (username: string): Promise<string | null> => {
     const key = normalizeUsername(username);
     const usernameDoc = await getDoc(doc(db, 'usernames', key));
     if (usernameDoc.exists()) {
       const data = usernameDoc.data() as { email?: string };
-      if (data?.email) {
-        return data.email;
-      }
+      return data?.email || null;
     }
-    return generateEmail(username);
+    return null;
   };
+
 
   // Signup function - username and password only
   const signup = async (username: string, email: string, password: string) => {
@@ -141,19 +141,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error('Please enter your login details');
       }
 
-      const email = identifier.includes('@')
-        ? identifier.trim().toLowerCase()
-        : await lookupEmailForUsername(identifier);
-      
-      await signInWithEmailAndPassword(auth, email, password);
+      if (identifier.includes('@')) {
+        await signInWithEmailAndPassword(auth, identifier.trim().toLowerCase(), password);
+        return;
+      }
+
+      const mappedEmail = await lookupEmailForUsername(identifier);
+
+      if (mappedEmail) {
+        try {
+          await signInWithEmailAndPassword(auth, mappedEmail, password);
+          return;
+        } catch (err: any) {
+          if (err?.code !== 'auth/user-not-found') {
+            throw err;
+          }
+        }
+      }
+
+      const legacyEmail = generateEmail(identifier);
+      await signInWithEmailAndPassword(auth, legacyEmail, password);
     } catch (error: any) {
       // Handle Firebase errors
       if (error.code === 'auth/user-not-found') {
-        throw new Error('Username or password is incorrect');
+        throw new Error('Account not found. If you updated your email, sign in once with email to sync username login.');
       } else if (error.code === 'auth/wrong-password') {
         throw new Error('Username or password is incorrect');
       } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Invalid username format');
+        throw new Error('Invalid login format');
       }
       throw new Error(error.message || 'Failed to login');
     }
@@ -174,9 +189,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!identifier) {
         throw new Error('Please enter your username or email');
       }
-      const email = identifier.includes('@')
-        ? identifier.trim().toLowerCase()
-        : await lookupEmailForUsername(identifier);
+      if (!identifier.includes('@')) {
+        throw new Error('Please enter the email address associated with your account.');
+      }
+      const email = identifier.trim().toLowerCase();
       await sendPasswordResetEmail(auth, email);
     } catch (error: any) {
       throw new Error(error.message || 'Failed to send reset email');
@@ -221,6 +237,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUserProfile((prev) => prev ? { ...prev, username: newUsername.trim() } : prev);
   };
 
+  const syncAccountEmailIfChanged = async (user: User) => {
+    if (!user.email) return;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (!userDoc.exists()) return;
+      const data = userDoc.data() as UserProfile;
+      if (data.email !== user.email) {
+        await updateDoc(userDocRef, { email: user.email });
+        if (data.username) {
+          await updateDoc(doc(db, 'usernames', normalizeUsername(data.username)), { email: user.email });
+        }
+        setUserProfile({ ...data, email: user.email });
+      }
+    } catch (error) {
+      console.error('Error syncing account email:', error);
+    }
+  };
+
   const updateAccountEmail = async (newEmail: string, currentPassword: string) => {
     if (!currentUser || !currentUser.email) throw new Error('No authenticated user');
     if (!newEmail || !newEmail.includes('@')) throw new Error('Please enter a valid email');
@@ -228,19 +263,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
     await reauthenticateWithCredential(currentUser, credential);
-    await updateEmail(currentUser, newEmail.trim().toLowerCase());
-
-    await updateDoc(doc(db, 'users', currentUser.uid), {
-      email: newEmail.trim().toLowerCase()
-    });
-
-    if (userProfile?.username) {
-      await updateDoc(doc(db, 'usernames', normalizeUsername(userProfile.username)), {
-        email: newEmail.trim().toLowerCase()
-      });
-    }
-
-    setUserProfile((prev) => prev ? { ...prev, email: newEmail.trim().toLowerCase() } : prev);
+    await verifyBeforeUpdateEmail(currentUser, newEmail.trim().toLowerCase());
   };
 
   const updateAccountPassword = async (currentPassword: string, newPassword: string) => {
@@ -286,6 +309,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setCurrentUser(user);
       if (user) {
         await loadUserProfile(user.uid);
+        await syncAccountEmailIfChanged(user);
       } else {
         setUserProfile(null);
       }

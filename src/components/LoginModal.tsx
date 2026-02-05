@@ -283,12 +283,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess }) =
 
           {isLogin && showReset && (
             <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
-              <p className="text-xs text-slate-600 mb-2">Send a reset link to your email.</p>
+              <p className="text-xs text-slate-600 mb-2">Send a reset link to your account email.</p>
               <input
-                type="text"
+                type="email"
                 value={resetIdentifier}
                 onChange={(e) => setResetIdentifier(e.target.value)}
-                placeholder="Username or email"
+                placeholder="you@example.com"
                 className={INPUT_STYLE}
               />
               <button
