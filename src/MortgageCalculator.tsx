@@ -1566,33 +1566,48 @@ const MortgageCalculator: React.FC = () => {
           onCurrencyChange={setSelectedCurrency}
         />
 
-        {currentUser && mortgagePortfolioSummary && (
-          <div className="mt-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Portfolio Summary
+        {currentUser ? (
+          mortgagePortfolioSummary && (
+            <div className="mt-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Portfolio Summary
+                </div>
+                <div className="text-xs text-slate-400">
+                  {mortgagePortfolioSummary.count} saved {mortgagePortfolioSummary.count === 1 ? 'mortgage' : 'mortgages'}
+                </div>
               </div>
-              <div className="text-xs text-slate-400">
-                {mortgagePortfolioSummary.count} saved {mortgagePortfolioSummary.count === 1 ? 'mortgage' : 'mortgages'}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <MetricCard
+                  label="Total monthly outflow"
+                  value={formatCurrency(mortgagePortfolioSummary.totalMonthlyOutflow)}
+                  icon={<Wallet className="w-4 h-4" />}
+                />
+                <MetricCard
+                  label="Outstanding balance"
+                  value={formatCurrency(mortgagePortfolioSummary.totalPrincipalRemaining)}
+                  icon={<HomeIcon className="w-4 h-4" />}
+                />
+                <MetricCard
+                  label="Principal paid"
+                  value={formatCurrency(mortgagePortfolioSummary.totalPrincipalPaid)}
+                  icon={<TrendingUp className="w-4 h-4" />}
+                />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard
-                label="Total monthly outflow"
-                value={formatCurrency(mortgagePortfolioSummary.totalMonthlyOutflow)}
-                icon={<Wallet className="w-4 h-4" />}
-              />
-              <MetricCard
-                label="Outstanding balance"
-                value={formatCurrency(mortgagePortfolioSummary.totalPrincipalRemaining)}
-                icon={<HomeIcon className="w-4 h-4" />}
-              />
-              <MetricCard
-                label="Principal paid"
-                value={formatCurrency(mortgagePortfolioSummary.totalPrincipalPaid)}
-                icon={<TrendingUp className="w-4 h-4" />}
-              />
-            </div>
+          )
+        ) : (
+          <div className="mt-4 mb-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-6 text-center">
+            <h3 className="text-sm font-semibold text-slate-800">Sign in to see your portfolio summary</h3>
+            <p className="text-xs text-slate-500 mt-2">
+              Track all saved mortgages, monthly outflow, and payoff progress in one place.
+            </p>
+            <button
+              onClick={() => setShowLoginModal(true)}
+              className="mt-4 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+            >
+              Sign in
+            </button>
           </div>
         )}
 
