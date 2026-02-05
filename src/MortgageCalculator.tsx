@@ -1566,7 +1566,7 @@ const MortgageCalculator: React.FC = () => {
           onCurrencyChange={setSelectedCurrency}
         />
 
-        {mortgagePortfolioSummary && (
+        {currentUser && mortgagePortfolioSummary && (
           <div className="mt-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
