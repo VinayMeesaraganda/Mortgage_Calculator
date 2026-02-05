@@ -1,8 +1,9 @@
 // Email Capture Modal - Conversion Optimization Component
 // Captures user emails for follow-up and marketing
 
-import React, { useState, memo, useCallback } from 'react';
+import React, { useState, memo, useCallback, useEffect } from 'react';
 import { X, Mail, CheckCircle, Send } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EmailCaptureModalProps {
   isOpen: boolean;
@@ -18,12 +19,21 @@ interface EmailCaptureModalProps {
 }
 
 const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, calculationSummary }) => {
+  const { userProfile, currentUser } = useAuth();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [subscribeNewsletter, setSubscribeNewsletter] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const accountEmail = userProfile?.email || currentUser?.email || '';
+    if (accountEmail && !accountEmail.endsWith('@personal-finance.app')) {
+      setEmail(accountEmail);
+    }
+  }, [isOpen, userProfile, currentUser]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Building } from 'lucide-react';
 import { formatCurrency } from '../utils/formatting';
+import PageShell from '../layouts/PageShell';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
@@ -116,22 +115,11 @@ const RentVsBuyCalculator: React.FC = () => {
     }, [homePrice, monthlyRent, years, homeAppreciation, rentIncrease, investmentReturn, downPaymentPercent, interestRate, propertyTaxRate, maintenanceRate, insuranceRate, buyingClosingCosts, sellingClosingCosts]);
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-12">
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link to="/" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <Building className="w-6 h-6 text-blue-600" />
-                            Rent vs. Buy Calculator
-                        </h1>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageShell
+            title="Rent vs Buy"
+            subtitle="Compare the long-term cost of renting versus owning based on your assumptions."
+        >
+            <div className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Inputs */}
                     <div className="lg:col-span-1 space-y-6">
@@ -302,8 +290,8 @@ const RentVsBuyCalculator: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </PageShell>
     );
 };
 

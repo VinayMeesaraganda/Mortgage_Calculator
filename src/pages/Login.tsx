@@ -3,19 +3,25 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { CARD_STYLE, CARD_SHADOW, INPUT_STYLE } from '../constants/styles';
+import { INPUT_STYLE } from '../constants/styles';
+import PageShell from '../layouts/PageShell';
+import Card from '../components/ui/Card';
 
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetIdentifier, setResetIdentifier] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
 
-  const { login, signup } = useAuth();
+  const { login, signup, sendPasswordReset } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,26 +29,30 @@ const Login: React.FC = () => {
     setError('');
 
     // Validation
-    if (!username || !password) {
+    if (!identifier || !password) {
       setError('Please fill in all required fields');
       return;
     }
 
-    // Username validation
-    if (username.trim().length < 3) {
-      setError('Username must be at least 3 characters long');
-      return;
-    }
-
-    // Username format validation (alphanumeric and underscore/hyphen only)
-    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!usernameRegex.test(username.trim())) {
-      setError('Username can only contain letters, numbers, underscores, and hyphens');
-      return;
+    // Username validation only when user enters a username (not email)
+    if (!identifier.includes('@')) {
+      if (identifier.trim().length < 3) {
+        setError('Username must be at least 3 characters long');
+        return;
+      }
+      const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+      if (!usernameRegex.test(identifier.trim())) {
+        setError('Username can only contain letters, numbers, underscores, and hyphens');
+        return;
+      }
     }
 
     // Password validation for signup
     if (!isLogin) {
+      if (!email || !email.includes('@')) {
+        setError('Please enter a valid email address');
+        return;
+      }
       if (password.length < 6) {
         setError('Password must be at least 6 characters long');
         return;
@@ -58,10 +68,10 @@ const Login: React.FC = () => {
 
     try {
       if (isLogin) {
-        await login(username.trim(), password);
+        await login(identifier.trim(), password);
         navigate('/');
       } else {
-        await signup(username.trim(), password);
+        await signup(identifier.trim(), email.trim(), password);
         navigate('/');
       }
     } catch (err: any) {
@@ -74,27 +84,33 @@ const Login: React.FC = () => {
   const toggleMode = () => {
     setIsLogin(!isLogin);
     setError('');
-    setUsername('');
+    setIdentifier('');
+    setEmail('');
     setPassword('');
     setConfirmPassword('');
+    setShowReset(false);
+    setResetIdentifier('');
+    setResetMessage('');
+  };
+
+  const handlePasswordReset = async () => {
+    setError('');
+    setResetMessage('');
+    try {
+      await sendPasswordReset(resetIdentifier.trim());
+      setResetMessage('Reset link sent. Check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset link.');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-serif font-bold text-slate-800 mb-2">
-            Personal Finance
-          </h1>
-          <p className="text-slate-600">
-            {isLogin ? 'Welcome back! Please login to continue' : 'Create an account to get started'}
-          </p>
-        </div>
-
-        {/* Login/Signup Card */}
-        <div className={CARD_STYLE} style={CARD_SHADOW}>
-          <div className="p-8">
+    <PageShell
+      title={isLogin ? 'Welcome back' : 'Create your account'}
+      subtitle={isLogin ? 'Sign in to continue managing your financial tools.' : 'Create a secure profile to save and sync your data.'}
+    >
+      <div className="w-full max-w-md mx-auto">
+        <Card variant="elevated" className="p-8">
             {/* Toggle between Login and Signup */}
             <div className="flex gap-2 mb-6">
               <button
@@ -131,26 +147,42 @@ const Login: React.FC = () => {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username */}
+            {/* Username or Email */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <User className="w-4 h-4 inline mr-1" />
+                {isLogin ? 'Username or Email' : 'Username'}
+              </label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder={isLogin ? 'Enter your username or email' : 'Choose a username'}
+                className={INPUT_STYLE}
+                required
+                pattern={isLogin ? undefined : "[a-zA-Z0-9_-]+"}
+                title={isLogin ? undefined : "Username can only contain letters, numbers, underscores, and hyphens"}
+              />
+              {!isLogin && (
+                <p className="text-xs text-slate-500 mt-1">3+ characters, letters, numbers, _, - only</p>
+              )}
+            </div>
+
+            {!isLogin && (
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  <User className="w-4 h-4 inline mr-1" />
-                  Username
+                  Email
                 </label>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
                   className={INPUT_STYLE}
-                  required
-                  pattern="[a-zA-Z0-9_-]+"
-                  title="Username can only contain letters, numbers, underscores, and hyphens"
+                  required={!isLogin}
                 />
-                {!isLogin && (
-                  <p className="text-xs text-slate-500 mt-1">3+ characters, letters, numbers, _, - only</p>
-                )}
               </div>
+            )}
 
               {/* Password */}
               <div>
@@ -180,6 +212,16 @@ const Login: React.FC = () => {
                 )}
               </div>
 
+              {isLogin && (
+              <button
+                type="button"
+                onClick={() => setShowReset((prev) => !prev)}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 text-left"
+              >
+                Forgot password?
+              </button>
+              )}
+
               {/* Confirm Password (Signup only) */}
               {!isLogin && (
                 <div>
@@ -207,7 +249,7 @@ const Login: React.FC = () => {
                 </div>
               )}
 
-              {/* Submit Button */}
+            {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
@@ -236,6 +278,27 @@ const Login: React.FC = () => {
               </button>
             </form>
 
+            {isLogin && showReset && (
+              <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
+                <p className="text-xs text-slate-600 mb-2">Send a reset link to your account email.</p>
+                <input
+                  type="email"
+                  value={resetIdentifier}
+                  onChange={(e) => setResetIdentifier(e.target.value)}
+                  placeholder="you@example.com"
+                  className={INPUT_STYLE}
+                />
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  className="mt-3 w-full px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                >
+                  Send reset link
+                </button>
+                {resetMessage && <p className="text-xs text-emerald-600 mt-2">{resetMessage}</p>}
+              </div>
+            )}
+
             {/* Security Note */}
             <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-800 text-center">
@@ -243,8 +306,7 @@ const Login: React.FC = () => {
                 Your data is securely encrypted and protected
               </p>
             </div>
-          </div>
-        </div>
+        </Card>
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-slate-600">
@@ -253,9 +315,8 @@ const Login: React.FC = () => {
           </p>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 };
 
 export default Login;
-
