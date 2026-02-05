@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ExportDropdown from '../ExportDropdown';
 
 interface ExportShareSectionProps {
@@ -20,16 +20,28 @@ const ExportShareSection: React.FC<ExportShareSectionProps> = ({
   showScenarioComparison,
   showRefinanceAnalysis
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <div className="mt-4 mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border-2 border-emerald-300 shadow-md">
-      <div className="mb-4">
-        <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
-          <span className="text-2xl">📊</span>
-          Save & Share Your Results
-        </h3>
-        <p className="text-sm text-slate-600">
-          Download complete reports in Excel, PDF, or CSV format
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <span className="text-2xl">📊</span>
+            Save & Share Your Results
+          </h3>
+          <p className="text-sm text-slate-600">
+            Download complete reports or email a copy
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="text-xs font-semibold text-emerald-700 bg-white/80 px-3 py-1.5 rounded-full border border-emerald-200 hover:bg-white transition"
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? 'Hide details' : 'Show details'}
+        </button>
       </div>
       <div className="flex flex-col sm:flex-row items-stretch gap-3">
         <div className="flex-1">
@@ -50,14 +62,20 @@ const ExportShareSection: React.FC<ExportShareSectionProps> = ({
           Email Results
         </button>
       </div>
-      <div className="mt-3 text-xs text-slate-600 space-y-1">
-        <p className="font-semibold">Report Includes:</p>
-        <ul className="list-disc list-inside space-y-0.5 ml-2">
-          <li>Complete amortization schedule</li>
-          {propertyType === 'investment' && <li>Investment Property Analysis with cash flow projections</li>}
-          {showScenarioComparison && <li>Loan Comparison Charts</li>}
-          {showRefinanceAnalysis && <li>Refinance Analysis with break-even point</li>}
-        </ul>
+      <div
+        className={`transition-all duration-300 overflow-hidden ${
+          isExpanded ? 'max-h-40 opacity-100 mt-3' : 'max-h-0 opacity-0 mt-0'
+        }`}
+      >
+        <div className="text-xs text-slate-600 space-y-1">
+          <p className="font-semibold">Report Includes:</p>
+          <ul className="list-disc list-inside space-y-0.5 ml-2">
+            <li>Complete amortization schedule</li>
+            {propertyType === 'investment' && <li>Investment Property Analysis with cash flow projections</li>}
+            {showScenarioComparison && <li>Loan Comparison Charts</li>}
+            {showRefinanceAnalysis && <li>Refinance Analysis with break-even point</li>}
+          </ul>
+        </div>
       </div>
     </div>
   );

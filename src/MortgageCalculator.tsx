@@ -2,7 +2,7 @@
 // This file demonstrates the clean architecture using separated modules
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronDown, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ArrowLeft, Wallet, Home as HomeIcon, TrendingUp } from 'lucide-react';
 
 // Import types
 import type { OneTimePayment, PaymentType, Currency, SavedMortgage } from './types/mortgage';
@@ -43,6 +43,7 @@ import ScenarioComparisonModal from './components/MortgageCalculator/ScenarioCom
 import RefinanceAnalysisModal from './components/MortgageCalculator/RefinanceAnalysisModal';
 import ExportShareSection from './components/MortgageCalculator/ExportShareSection';
 import MortgageEducationalSection from './components/MortgageCalculator/MortgageEducationalSection';
+import MetricCard from './components/ui/MetricCard';
 
 // Import constants
 import { CARD_STYLE, CARD_SHADOW } from './constants/styles';
@@ -78,6 +79,151 @@ const MortgageCalculator: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
 
   const steps = ['Loan Details', 'Property Expenses', 'Extra Payments'];
+
+  const mortgagePortfolioSummary = useMemo(() => {
+    if (savedMortgages.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const normalizeDate = (value?: string) => {
+      if (!value) return null;
+      const safeValue = value.length === 7 ? `${value}-01` : value;
+      const date = new Date(safeValue);
+      if (Number.isNaN(date.getTime())) return null;
+      date.setHours(0, 0, 0, 0);
+      return date;
+    };
+
+    let totalMonthlyOutflow = 0;
+    let totalPrincipalPaid = 0;
+    let totalPrincipalRemaining = 0;
+
+    savedMortgages.forEach((mortgage) => {
+      const loanAmount = mortgage.homeValue - mortgage.downPayment;
+      const monthlyPayment = calculateMonthlyPayment(loanAmount, mortgage.interestRate, mortgage.tenure);
+      const monthlyEquivalent = mortgage.paymentType === 'biweekly'
+        ? (monthlyPayment / 2) * (26 / 12)
+        : monthlyPayment;
+
+      let extraMonthly = 0;
+      if (mortgage.extraPaymentEnabled && mortgage.extraPaymentAmount > 0) {
+        if (mortgage.extraPaymentFrequency === 'monthly') {
+          extraMonthly = mortgage.extraPaymentAmount;
+        } else if (mortgage.extraPaymentFrequency === 'biweekly') {
+          extraMonthly = mortgage.extraPaymentAmount * (26 / 12);
+        }
+      }
+
+      const taxMonthly = mortgage.propertyTax
+        ? (mortgage.propertyTaxPeriod === 'month' ? mortgage.propertyTax : mortgage.propertyTax / 12)
+        : 0;
+      const insuranceMonthly = mortgage.homeInsurance
+        ? (mortgage.homeInsurancePeriod === 'month' ? mortgage.homeInsurance : mortgage.homeInsurance / 12)
+        : 0;
+      const hoaMonthly = mortgage.hoaFees || 0;
+
+      totalMonthlyOutflow += monthlyEquivalent + extraMonthly + taxMonthly + insuranceMonthly + hoaMonthly;
+
+      const startDateObj = normalizeDate(mortgage.startDate) || today;
+      const extraStartDate = mortgage.extraPaymentEnabled ? normalizeDate(mortgage.extraPaymentStartDate) : null;
+      const oneTimePayments = mortgage.oneTimePayments || [];
+
+      let principalPaidFromPayments = 0;
+      let principalPaid = mortgage.downPayment;
+      let principalRemaining = loanAmount;
+
+      if (loanAmount > 0 && startDateObj <= today) {
+        if (mortgage.paymentType === 'biweekly') {
+          const dailyRate = mortgage.interestRate / 100 / 365;
+          const biweeklyPayment = monthlyPayment / 2;
+          let balance = loanAmount;
+          let paymentDate = new Date(startDateObj);
+          const appliedOneTime = new Set<string>();
+          const maxPayments = mortgage.tenure * 26;
+
+          for (let i = 0; i < maxPayments && balance > 0.01; i++) {
+            if (paymentDate > today) break;
+            const interest = balance * dailyRate * 14;
+            let principal = biweeklyPayment - interest;
+            if (principal < 0) principal = 0;
+
+            if (
+              mortgage.extraPaymentEnabled &&
+              mortgage.extraPaymentFrequency === 'biweekly' &&
+              extraStartDate &&
+              paymentDate >= extraStartDate
+            ) {
+              principal += mortgage.extraPaymentAmount;
+            }
+
+            const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+            oneTimePayments.forEach((payment) => {
+              if (payment.date === monthKey && !appliedOneTime.has(payment.id)) {
+                principal += payment.amount;
+                appliedOneTime.add(payment.id);
+              }
+            });
+
+            principal = Math.min(principal, balance);
+            balance -= principal;
+            principalPaidFromPayments += principal;
+            principalPaid += principal;
+
+            paymentDate.setDate(paymentDate.getDate() + 14);
+          }
+
+          principalRemaining = Math.max(0, loanAmount - principalPaidFromPayments);
+        } else {
+          const monthlyRate = mortgage.interestRate / 100 / 12;
+          let balance = loanAmount;
+          let paymentDate = new Date(startDateObj);
+          const totalMonths = mortgage.tenure * 12;
+
+          for (let i = 0; i < totalMonths && balance > 0.01; i++) {
+            if (paymentDate > today) break;
+            const interest = balance * monthlyRate;
+            let principal = monthlyPayment - interest;
+            if (principal < 0) principal = 0;
+
+            if (
+              mortgage.extraPaymentEnabled &&
+              mortgage.extraPaymentFrequency === 'monthly' &&
+              extraStartDate &&
+              paymentDate >= extraStartDate
+            ) {
+              principal += mortgage.extraPaymentAmount;
+            }
+
+            const monthKey = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+            oneTimePayments.forEach((payment) => {
+              if (payment.date === monthKey) {
+                principal += payment.amount;
+              }
+            });
+
+            principal = Math.min(principal, balance);
+            balance -= principal;
+            principalPaidFromPayments += principal;
+            principalPaid += principal;
+            paymentDate.setMonth(paymentDate.getMonth() + 1);
+          }
+
+          principalRemaining = Math.max(0, loanAmount - principalPaidFromPayments);
+        }
+      }
+
+      totalPrincipalPaid += principalPaid;
+      totalPrincipalRemaining += principalRemaining;
+    });
+
+    return {
+      count: savedMortgages.length,
+      totalMonthlyOutflow,
+      totalPrincipalPaid,
+      totalPrincipalRemaining
+    };
+  }, [savedMortgages]);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isInitialLoadRef = useRef(true);
   const lastLocalChangeRef = useRef<number>(0);
@@ -1361,7 +1507,11 @@ const MortgageCalculator: React.FC = () => {
     ], [isExtraPaymentComparison, paymentType, graphRemainingInterest, graphRemainingInterestComparison, comparisonCalc.endDate, endDate, oneTimePayments]);
 
   return (
-    <div key={`currency-${currencyRenderKey}`} className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden">
+    <div
+      id="mortgage-calculator-section"
+      key={`currency-${currencyRenderKey}`}
+      className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden scroll-mt-24"
+    >
       {/* Login Modal */}
       <LoginModal
         isOpen={showLoginModal}
@@ -1419,6 +1569,36 @@ const MortgageCalculator: React.FC = () => {
           onCurrencyChange={setSelectedCurrency}
         />
 
+        {mortgagePortfolioSummary && (
+          <div className="mt-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Portfolio Summary
+              </div>
+              <div className="text-xs text-slate-400">
+                {mortgagePortfolioSummary.count} saved {mortgagePortfolioSummary.count === 1 ? 'mortgage' : 'mortgages'}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <MetricCard
+                label="Total monthly outflow"
+                value={formatCurrency(mortgagePortfolioSummary.totalMonthlyOutflow)}
+                icon={<Wallet className="w-4 h-4" />}
+              />
+              <MetricCard
+                label="Outstanding balance"
+                value={formatCurrency(mortgagePortfolioSummary.totalPrincipalRemaining)}
+                icon={<HomeIcon className="w-4 h-4" />}
+              />
+              <MetricCard
+                label="Principal paid"
+                value={formatCurrency(mortgagePortfolioSummary.totalPrincipalPaid)}
+                icon={<TrendingUp className="w-4 h-4" />}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
           {/* Loan Details */}
           {/* Loan Details - Takes 2 columns (40% width) on desktop, full width on mobile */}
@@ -1432,7 +1612,7 @@ const MortgageCalculator: React.FC = () => {
 
                 <div className="min-h-[400px]">
                   {currentStep === 0 && (
-                    <div className="animate-fadeIn">
+                    <div id="mortgage-refinance-section" className="animate-fadeIn scroll-mt-24">
                       <LoanInputs
                         homeValueInput={homeValueInput}
                         downPaymentInput={downPaymentInput}
@@ -1617,22 +1797,62 @@ const MortgageCalculator: React.FC = () => {
             </div>
 
             {/* Comparison Section */}
-            <PaymentPlanComparison
-              paymentPlanViewMode={paymentPlanViewMode}
-              onPaymentPlanViewModeChange={setPaymentPlanViewMode}
-              onReset={handleResetComparisonDefaults}
-              interestSaved={interestSaved}
-              timeSaved={timeSaved}
-              isExtraPaymentComparison={isExtraPaymentComparison}
-              extraPaymentAmount={extraPaymentAmount}
-              extraPaymentFrequency={extraPaymentFrequency}
-              forwardProjections={forwardProjections}
-              paymentType={paymentType}
-              graphRemainingInterest={graphRemainingInterest}
-              graphRemainingInterestComparison={graphRemainingInterestComparison}
-              comparisonBarData={comparisonBarData}
-              chartRenderKey={chartRenderKey}
-            />
+            <section id="mortgage-compare-section" className="scroll-mt-24">
+              <PaymentPlanComparison
+                paymentPlanViewMode={paymentPlanViewMode}
+                onPaymentPlanViewModeChange={setPaymentPlanViewMode}
+                onReset={handleResetComparisonDefaults}
+                interestSaved={interestSaved}
+                timeSaved={timeSaved}
+                isExtraPaymentComparison={isExtraPaymentComparison}
+                extraPaymentAmount={extraPaymentAmount}
+                extraPaymentFrequency={extraPaymentFrequency}
+                forwardProjections={forwardProjections}
+                paymentType={paymentType}
+                graphRemainingInterest={graphRemainingInterest}
+                graphRemainingInterestComparison={graphRemainingInterestComparison}
+                comparisonBarData={comparisonBarData}
+                chartRenderKey={chartRenderKey}
+              />
+            </section>
+
+            {propertyType === 'investment' && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">Investment Insights</h3>
+                    <p className="text-xs text-slate-500">Rental performance at a glance</p>
+                  </div>
+                  <span className="text-xs text-emerald-600 font-semibold">Investment mode</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <MetricCard
+                    label="Effective rent"
+                    value={formatCurrency(effectiveMonthlyRent)}
+                  />
+                  <MetricCard
+                    label="Operating expenses"
+                    value={formatCurrency(totalOperatingExpenses)}
+                  />
+                  <MetricCard
+                    label="Monthly cash flow"
+                    value={formatCurrency(monthlyCashFlow)}
+                  />
+                  <MetricCard
+                    label="Annual cash flow"
+                    value={formatCurrency(annualCashFlow)}
+                  />
+                  <MetricCard
+                    label="Cap rate"
+                    value={`${capRate.toFixed(1)}%`}
+                  />
+                  <MetricCard
+                    label="Break-even occupancy"
+                    value={`${breakEvenOccupancy.toFixed(1)}%`}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Amortization sections inside right column when additional costs are shown */}
 
@@ -1654,25 +1874,48 @@ const MortgageCalculator: React.FC = () => {
             selectedCurrency={selectedCurrency}
           />
 
-          {/* Mortgage Tracker - Only show when logged in and has saved mortgages */}
-          {currentUser && savedMortgages.length > 0 && (
-            <MortgageTracker
-              savedMortgages={savedMortgages}
-              selectedMortgageId={selectedMortgageId}
-              schedule={schedule}
-              totalInterest={totalInterest}
-              endDate={endDate}
-              saveError={saveError}
-              isSavingMortgage={isSavingMortgage}
-              editingMortgageName={editingMortgageName}
-              editingMortgageNameValue={editingMortgageNameValue}
-              setEditingMortgageName={setEditingMortgageName}
-              setEditingMortgageNameValue={setEditingMortgageNameValue}
-              onLoadMortgage={handleLoadMortgage}
-              onDeleteMortgage={handleDeleteMortgage}
-              onUpdateMortgageName={handleUpdateMortgageName}
-            />
-          )}
+          <section id="mortgage-tracker-section" className="scroll-mt-24">
+            {currentUser ? (
+              savedMortgages.length > 0 ? (
+                <MortgageTracker
+                  savedMortgages={savedMortgages}
+                  selectedMortgageId={selectedMortgageId}
+                  schedule={schedule}
+                  totalInterest={totalInterest}
+                  endDate={endDate}
+                  saveError={saveError}
+                  isSavingMortgage={isSavingMortgage}
+                  editingMortgageName={editingMortgageName}
+                  editingMortgageNameValue={editingMortgageNameValue}
+                  setEditingMortgageName={setEditingMortgageName}
+                  setEditingMortgageNameValue={setEditingMortgageNameValue}
+                  onLoadMortgage={handleLoadMortgage}
+                  onDeleteMortgage={handleDeleteMortgage}
+                  onUpdateMortgageName={handleUpdateMortgageName}
+                />
+              ) : (
+                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center">
+                  <h3 className="text-lg font-semibold text-slate-800">No saved mortgages yet</h3>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Save a mortgage from the calculator to start tracking payoff progress and milestones.
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center">
+                <h3 className="text-lg font-semibold text-slate-800">Track mortgages across sessions</h3>
+                <p className="text-sm text-slate-500 mt-2">
+                  Sign in to save mortgages, track payoff progress, and compare scenarios over time.
+                </p>
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+                >
+                  Sign in to enable tracker
+                </button>
+              </div>
+            )}
+          </section>
 
           {/* Export & Share Actions Section - Moved here for visibility */}
           <ExportShareSection

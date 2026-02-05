@@ -1,6 +1,5 @@
-import { Link } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Wallet, TrendingUp, PieChart as PieChartIcon, ArrowUpRight, IndianRupee, ArrowLeft } from 'lucide-react';
+import { Plus, Wallet, TrendingUp, PieChart as PieChartIcon, ArrowUpRight, IndianRupee } from 'lucide-react';
 import { FixedDeposit, TaxConfig } from '../types/fd';
 import { calculateFDReturns, calculateTaxImpact } from '../utils/fdCalculations';
 import { AddFDModal } from '../components/FD/AddFDModal';
@@ -9,6 +8,8 @@ import { formatCurrency } from '../utils/formatting';
 import { useAuth } from '../contexts/AuthContext';
 import { saveFDs, loadFDs, subscribeToFDs } from '../services/fdService';
 import { DEBOUNCE_DELAYS } from '../utils/constants';
+import PageShell from '../layouts/PageShell';
+import Button from '../components/ui/Button';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -200,36 +201,22 @@ const FixedDeposits: React.FC = () => {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-8">
-
-        {/* Header */}
-        <div className="flex flex-col space-y-4">
-          <Link to="/" className="inline-flex items-center text-slate-500 hover:text-blue-600 transition-colors w-fit">
-            <ArrowLeft size={20} className="mr-2" />
-            Back to Dashboard
-          </Link>
-
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Fixed Deposit Manager</h1>
-              <p className="text-slate-500 mt-1">Track your FDs, RDs, and analyze returns like a pro.</p>
-            </div>
-            <div className="flex gap-2">
-              {isSaving && <span className="text-sm text-gray-500 self-center">Saving...</span>}
-              <button
-                onClick={() => { setEditingFD(undefined); setIsAddModalOpen(true); }}
-                disabled={isLoading}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 flex items-center gap-2 transition-transform active:scale-95"
-              >
-                <Plus size={20} /> New Investment
-              </button>
-            </div>
-          </div>
+    <PageShell
+      title="Fixed Deposit Manager"
+      subtitle="Track your FDs, RDs, and analyze returns like a pro."
+      actions={(
+        <div className="flex items-center gap-2">
+          {isSaving && <span className="text-xs text-slate-500">Saving...</span>}
+          <Button onClick={() => { setEditingFD(undefined); setIsAddModalOpen(true); }} disabled={isLoading}>
+            <Plus size={18} /> New investment
+          </Button>
         </div>
+      )}
+    >
+      <div className="space-y-8">
 
         {/* Portfolio Summary Cards */}
-        < div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" >
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -277,12 +264,12 @@ const FixedDeposits: React.FC = () => {
             </div>
             <p className="text-xs text-slate-400 mt-2 z-10 relative">Net Return: {formatCurrency(portfolioSummary.netInterest)}</p>
           </div>
-        </div >
+        </div>
 
         {/* Charts Section */}
-        < div className="grid grid-cols-1 lg:grid-cols-2 gap-8" >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8" >
           {/* Laddering Chart */}
-          < div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" >
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" >
             <h3 className="text-lg font-bold text-slate-800 mb-6">Maturity Ladder (Liquidity)</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -295,10 +282,10 @@ const FixedDeposits: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div >
+          </div>
 
           {/* Allocation Chart */}
-          < div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" >
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" >
             <h3 className="text-lg font-bold text-slate-800 mb-6">Bank Allocation</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -322,11 +309,11 @@ const FixedDeposits: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </div >
-        </div >
+          </div>
+        </div>
 
         {/* List Section */}
-        < div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden" >
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden" >
           <div className="p-6 border-b border-gray-100 flex justify-between items-center">
             <h3 className="text-lg font-bold text-slate-800">Review Investments</h3>
           </div>
@@ -404,9 +391,9 @@ const FixedDeposits: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div >
+        </div>
 
-      </div >
+      </div>
 
       <AddFDModal
         isOpen={isAddModalOpen}
@@ -424,7 +411,7 @@ const FixedDeposits: React.FC = () => {
         confirmText="Delete"
         isProcessing={isSaving}
       />
-    </div >
+    </PageShell>
   );
 };
 

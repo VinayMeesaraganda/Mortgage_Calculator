@@ -348,11 +348,11 @@ const MortgageEducationalSection: React.FC = () => {
 
         {/* Footer with Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-slate-200 pt-4">
-          <p className="mb-2">Last Updated: November 2025</p>
+          <p className="mb-2">Last Updated: February 4, 2026</p>
           <div className="flex justify-center gap-4 flex-wrap">
-            <a href="#privacy" className="hover:text-blue-600 transition-colors">Privacy Policy</a>
+            <a href="/privacy-policy" className="hover:text-blue-600 transition-colors">Privacy Policy</a>
             <span>•</span>
-            <a href="#terms" className="hover:text-blue-600 transition-colors">Terms of Service</a>
+            <a href="/terms-of-service" className="hover:text-blue-600 transition-colors">Terms of Service</a>
             <span>•</span>
             <a href="#methodology" className="hover:text-blue-600 transition-colors" onClick={(e) => { e.preventDefault(); document.querySelector('h2:has-text("Calculation Methodology")')?.scrollIntoView({ behavior: 'smooth' }); }}>Methodology</a>
           </div>

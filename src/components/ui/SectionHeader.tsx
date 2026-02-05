@@ -1,0 +1,21 @@
+import React from 'react';
+
+interface SectionHeaderProps {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}
+
+const SectionHeader: React.FC<SectionHeaderProps> = ({ title, subtitle, actions }) => {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+        {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+};
+
+export default SectionHeader;

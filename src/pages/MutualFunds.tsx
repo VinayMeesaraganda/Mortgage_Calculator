@@ -6,7 +6,8 @@ import { setGlobalCurrency } from '../utils/formatting';
 import LoginModal from '../components/LoginModal';
 import AddMutualFundForm from '../components/MutualFunds/AddMutualFundForm';
 import HistoricalPerformanceCard from '../components/MutualFunds/HistoricalPerformanceCard';
-import MutualFundsHeader from '../components/MutualFunds/MutualFundsHeader';
+import PageShell from '../layouts/PageShell';
+import CurrencySelector from '../components/CurrencySelector';
 import MutualFundsHoldingsList from '../components/MutualFunds/MutualFundsHoldingsList';
 import PortfolioSummaryCards from '../components/MutualFunds/PortfolioSummaryCards';
 import PortfolioSyncStatus from '../components/MutualFunds/PortfolioSyncStatus';
@@ -1008,11 +1009,14 @@ const MutualFunds: React.FC = () => {
   }, [historicalStartDate, historicalDataForScheme, showError]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-violet-50/20">
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-      />
+    <PageShell
+      title="Mutual Funds"
+      subtitle="Track holdings, simulate SIP growth, and monitor portfolio performance."
+      actions={
+        <CurrencySelector selectedCurrency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
+      }
+    >
+      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
 
       <SipWarningModal
         isOpen={showSipWarningModal}
@@ -1023,12 +1027,7 @@ const MutualFunds: React.FC = () => {
         }}
       />
 
-      <MutualFundsHeader
-        selectedCurrency={selectedCurrency}
-        onCurrencyChange={setSelectedCurrency}
-      />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="space-y-6">
         <SipCalculatorCard
           sipCalculatorExpanded={sipCalculatorExpanded}
           onToggleExpand={() => setSipCalculatorExpanded(!sipCalculatorExpanded)}
@@ -1161,9 +1160,8 @@ const MutualFunds: React.FC = () => {
           handleUpdatePurchase={handleUpdatePurchase}
           handleAddPurchaseInline={handleAddPurchaseInline}
         />
-      </main>
-    </div>
-
+      </div>
+    </PageShell>
   );
 };
 

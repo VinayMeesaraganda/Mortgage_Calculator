@@ -8,7 +8,9 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { ClaimTracker } from '../components/Insurance/ClaimTracker';
 import { AnalyticsDashboard } from '../components/Insurance/AnalyticsDashboard';
 import InsuranceDetailsModal from '../components/Insurance/InsuranceDetailsModal';
-import InsuranceHeader from '../components/Insurance/InsuranceHeader';
+import PageShell from '../layouts/PageShell';
+import Button from '../components/ui/Button';
+import { Download, Printer, Plus } from 'lucide-react';
 import InsurancePoliciesSection from '../components/Insurance/InsurancePoliciesSection';
 import InsuranceSummaryCards from '../components/Insurance/InsuranceSummaryCards';
 import InsuranceTabs from '../components/Insurance/InsuranceTabs';
@@ -272,16 +274,25 @@ const Insurance: React.FC = () => {
     : insurances.filter(ins => ins.category === selectedCategory);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <InsuranceHeader
-          isSaving={isSaving}
-          isLoading={isLoading}
-          onExport={() => exportToCSV(insurances, claims)}
-          onPrint={printPortfolio}
-          onAddPolicy={() => setIsAddModalOpen(true)}
-        />
-
+    <PageShell
+      title="Insurance Tracker"
+      subtitle="Track policies, manage renewals, and visualize coverage health."
+      actions={(
+        <div className="flex flex-wrap items-center gap-2">
+          {isSaving && <span className="text-xs text-slate-500">Saving...</span>}
+          <Button variant="secondary" onClick={() => exportToCSV(insurances, claims)}>
+            <Download className="w-4 h-4" /> Export
+          </Button>
+          <Button variant="secondary" onClick={printPortfolio}>
+            <Printer className="w-4 h-4" /> Print
+          </Button>
+          <Button onClick={() => setIsAddModalOpen(true)} disabled={isLoading}>
+            <Plus className="w-4 h-4" /> Add policy
+          </Button>
+        </div>
+      )}
+    >
+      <div className="space-y-8">
         <InsuranceSummaryCards
           totalPolicies={totalPolicies}
           activePoliciesCount={activePolicies.length}
@@ -355,8 +366,7 @@ const Insurance: React.FC = () => {
         confirmText="Delete"
         cancelText="Cancel"
       />
-    </div>
-
+    </PageShell>
   );
 };
 

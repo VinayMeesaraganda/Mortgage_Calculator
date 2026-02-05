@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Calculator } from 'lucide-react';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, getGlobalCurrency } from '../utils/formatting';
+import { CURRENCY_DATA } from '../utils/currency';
+import PageShell from '../layouts/PageShell';
 
 const AffordabilityCalculator: React.FC = () => {
     // State for inputs
@@ -18,6 +18,7 @@ const AffordabilityCalculator: React.FC = () => {
     const [maxHomePrice, setMaxHomePrice] = useState(0);
     const [monthlyPayment, setMonthlyPayment] = useState(0);
     const [dti, setDti] = useState(0);
+    const currencySymbol = CURRENCY_DATA[getGlobalCurrency()].symbol;
 
     // Calculation logic
     useEffect(() => {
@@ -82,23 +83,11 @@ const AffordabilityCalculator: React.FC = () => {
     }, [annualIncome, monthlyDebts, downPayment, interestRate, loanTerm, propertyTaxRate, homeInsurance, hoaFees]);
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-12">
-            {/* Header */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link to="/" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <Calculator className="w-6 h-6 text-green-600" />
-                            Affordability Calculator
-                        </h1>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageShell
+            title="Affordability Calculator"
+            subtitle="Estimate how much house you can afford based on your income, debts, and down payment."
+        >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Inputs Section */}
                     <div className="lg:col-span-1 space-y-6">
@@ -110,7 +99,7 @@ const AffordabilityCalculator: React.FC = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Annual Gross Income</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">$</span>
+                                            <span className="text-slate-500">{currencySymbol}</span>
                                         </div>
                                         <input
                                             type="number"
@@ -126,7 +115,7 @@ const AffordabilityCalculator: React.FC = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Debts</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">$</span>
+                                            <span className="text-slate-500">{currencySymbol}</span>
                                         </div>
                                         <input
                                             type="number"
@@ -142,7 +131,7 @@ const AffordabilityCalculator: React.FC = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Down Payment</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">$</span>
+                                            <span className="text-slate-500">{currencySymbol}</span>
                                         </div>
                                         <input
                                             type="number"
@@ -216,22 +205,22 @@ const AffordabilityCalculator: React.FC = () => {
 
                             <div className="relative z-10">
                                 <h2 className="text-green-100 font-medium text-lg mb-2">You can afford a home up to</h2>
-                                <div className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                                <div className="text-[clamp(2.1rem,3.6vw,3.4rem)] font-bold mb-6 tracking-tight leading-tight whitespace-nowrap">
                                     {formatCurrency(maxHomePrice)}
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-white/20">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-white/20">
                                     <div>
                                         <div className="text-green-200 text-sm mb-1">Monthly Payment</div>
-                                        <div className="text-2xl font-bold">{formatCurrency(monthlyPayment)}</div>
+                                        <div className="text-lg sm:text-xl font-bold whitespace-nowrap">{formatCurrency(monthlyPayment)}</div>
                                     </div>
                                     <div>
                                         <div className="text-green-200 text-sm mb-1">Down Payment</div>
-                                        <div className="text-2xl font-bold">{formatCurrency(downPayment)}</div>
+                                        <div className="text-lg sm:text-xl font-bold whitespace-nowrap">{formatCurrency(downPayment)}</div>
                                     </div>
                                     <div>
                                         <div className="text-green-200 text-sm mb-1">Debt-to-Income</div>
-                                        <div className="text-2xl font-bold">{dti.toFixed(1)}%</div>
+                                        <div className="text-lg sm:text-xl font-bold">{dti.toFixed(1)}%</div>
                                     </div>
                                 </div>
                             </div>
@@ -258,8 +247,8 @@ const AffordabilityCalculator: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </PageShell>
     );
 };
 

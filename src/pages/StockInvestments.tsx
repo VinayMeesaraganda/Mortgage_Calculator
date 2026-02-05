@@ -4,7 +4,8 @@ import type { Currency } from '../types/mortgage';
 import { formatCurrency, setGlobalCurrency } from '../utils/formatting';
 import StockAddForm from '../components/StockInvestments/StockAddForm';
 import StockHoldingsTable from '../components/StockInvestments/StockHoldingsTable';
-import StockInvestmentsHeader from '../components/StockInvestments/StockInvestmentsHeader';
+import PageShell from '../layouts/PageShell';
+import CurrencySelector from '../components/CurrencySelector';
 import StockPortfolioSummaryCards from '../components/StockInvestments/StockPortfolioSummaryCards';
 import StockTransactionsTable from '../components/StockInvestments/StockTransactionsTable';
 import { useToast } from '../components/Toast';
@@ -714,17 +715,23 @@ const StockInvestments: React.FC = () => {
   }, [holdings]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20">
-      <StockInvestmentsHeader
-        isLoadingHoldings={isLoadingHoldings}
-        isSavingHoldings={isSavingHoldings}
-        isRefreshingAllPrices={isRefreshingAllPrices}
-        onRefreshAllPrices={() => refreshAllPrices()}
-        selectedCurrency={selectedCurrency}
-        onCurrencyChange={setSelectedCurrency}
-      />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <PageShell
+      title="Stock Investments"
+      subtitle="Track holdings, monitor performance, and review transactions in one clean dashboard."
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <CurrencySelector selectedCurrency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
+          <button
+            onClick={() => refreshAllPrices()}
+            disabled={isRefreshingAllPrices}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-brand-primary text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {isRefreshingAllPrices ? 'Refreshing prices...' : 'Refresh prices'}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-6">
         <StockPortfolioSummaryCards
           portfolioTotals={portfolioTotals}
           selectedCurrency={selectedCurrency}
@@ -798,9 +805,8 @@ const StockInvestments: React.FC = () => {
           onDeleteTransaction={handleDeleteTransaction}
           onInvalidEdit={() => warning('Please enter valid price and quantity')}
         />
-      </main>
-    </div>
-
+      </div>
+    </PageShell>
   );
 };
 

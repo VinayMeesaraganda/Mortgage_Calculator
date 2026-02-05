@@ -2,6 +2,8 @@ import React from 'react';
 import { Check, Edit2, Home, Trash2, X } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatting';
 import type { SavedMortgage, ScheduleItem } from '../../types/mortgage';
+import { calculateMonthlyAmortization, calculateBiweeklyAmortization } from '../../utils/calculations';
+import { calculateMonthlyPayment } from '../../utils/calculations-helpers';
 
 interface MortgageTrackerProps {
   savedMortgages: SavedMortgage[];
@@ -83,101 +85,50 @@ const MortgageTracker: React.FC<MortgageTrackerProps> = ({
             // Calculate remaining interest (total interest - interest paid)
             interestRemaining = Math.max(0, totalInterest - interestPaid);
           } else {
-            // For other mortgages, recalculate schedule to get accurate numbers
-            const monthsElapsed = Math.max(0, Math.floor((today.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
-            const totalMonths = mortgage.tenure * 12;
+            const annualRate = mortgage.interestRate / 100;
+            const effectiveExtraFrequency = mortgage.extraPaymentEnabled
+              ? (mortgage.extraPaymentFrequency === 'biweekly' && mortgage.paymentType === 'biweekly' ? 'biweekly' : 'monthly')
+              : 'monthly';
+            const mortgageOneTimePayments = mortgage.oneTimePayments || [];
+            const principal = mortgageLoanAmount;
 
-            if (monthsElapsed > 0 && monthsElapsed < totalMonths) {
-              // Recalculate schedule for this mortgage
-              const mortgageLoan = mortgage.homeValue - mortgage.downPayment;
-              const monthlyRate = mortgage.interestRate / 100 / 12;
+            const calculation = mortgage.paymentType === 'biweekly'
+              ? calculateBiweeklyAmortization(
+                  principal,
+                  annualRate,
+                  calculateMonthlyPayment(principal, mortgage.interestRate, mortgage.tenure),
+                  mortgage.startDate,
+                  mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'biweekly',
+                  mortgage.extraPaymentStartDate,
+                  'biweekly',
+                  mortgage.extraPaymentAmount,
+                  mortgageOneTimePayments
+                )
+              : calculateMonthlyAmortization(
+                  principal,
+                  annualRate,
+                  mortgage.tenure,
+                  mortgage.startDate,
+                  mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'monthly',
+                  mortgage.extraPaymentStartDate,
+                  'monthly',
+                  mortgage.extraPaymentAmount,
+                  mortgageOneTimePayments
+                );
 
-              let paymentAmount;
-              let numPayments;
-              let totalInterestForMortgage;
+            calculation.schedule.forEach((item) => {
+              const paymentDate = new Date(item.date);
+              paymentDate.setHours(0, 0, 0, 0);
 
-              if (mortgage.paymentType === 'biweekly') {
-                // Biweekly payment calculation
-                numPayments = mortgage.tenure * 26; // 26 biweekly periods per year
-                // Calculate monthly payment first, then divide by 2 for biweekly
-                const monthlyPayment = (mortgageLoan * monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) /
-                  (Math.pow(1 + monthlyRate, totalMonths) - 1);
-                paymentAmount = monthlyPayment / 2;
-
-                // For biweekly, simulate the full schedule to get accurate total interest
-                const dailyRate = mortgage.interestRate / 100 / 365;
-                let simBalance = mortgageLoan;
-                let simTotalInterest = 0;
-                let paymentsProcessed = 0;
-
-                while (simBalance > 0.01 && paymentsProcessed < numPayments) {
-                  const interest = simBalance * dailyRate * 14; // 14 days interest
-                  const principal = Math.min(paymentAmount - interest, simBalance);
-                  simBalance -= principal;
-                  simTotalInterest += interest;
-                  paymentsProcessed++;
-                }
-                totalInterestForMortgage = simTotalInterest;
-              } else {
-                // Monthly payment calculation (correct)
-                numPayments = mortgage.tenure * 12;
-                paymentAmount = (mortgageLoan * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
-                  (Math.pow(1 + monthlyRate, numPayments) - 1);
-                totalInterestForMortgage = (paymentAmount * numPayments) - mortgageLoan;
+              if (paymentDate >= startDateObj && paymentDate <= today) {
+                principalPaidFromPayments += item.principal;
+                principalPaid += item.principal;
+                interestPaid += item.interest;
               }
+            });
 
-              if (isNaN(paymentAmount) || !isFinite(paymentAmount)) {
-                // Fallback calculation if payment amount calculation fails
-                principalRemaining = mortgageLoanAmount;
-                interestRemaining = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
-              } else {
-                let balance = mortgageLoan;
-
-                if (mortgage.paymentType === 'biweekly') {
-                  // Calculate biweekly payments up to today
-                  const dailyRate = mortgage.interestRate / 100 / 365;
-                  const biweeklyPeriodsElapsed = Math.floor(monthsElapsed * 2.17); // ~26 periods per year / 12 months
-
-                  for (let i = 0; i < biweeklyPeriodsElapsed && balance > 0.01; i++) {
-                    const interest = balance * dailyRate * 14; // 14 days interest
-                    const principal = Math.min(paymentAmount - interest, balance);
-                    balance -= principal;
-                    principalPaidFromPayments += principal;
-                    principalPaid += principal;
-                    interestPaid += interest;
-                  }
-                } else {
-                  // Calculate monthly payments up to today
-                  for (let i = 0; i < monthsElapsed && i < totalMonths; i++) {
-                    const interest = balance * monthlyRate;
-                    const principal = Math.min(paymentAmount - interest, balance);
-                    balance -= principal;
-                    principalPaidFromPayments += principal;
-                    principalPaid += principal;
-                    interestPaid += interest;
-                  }
-                }
-
-                // Outstanding loan = loan amount - principal paid from payments
-                principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
-
-                // Calculate remaining interest
-                interestRemaining = Math.max(0, totalInterestForMortgage - interestPaid);
-              }
-            } else if (monthsElapsed >= totalMonths) {
-              // Loan is fully paid
-              principalPaidFromPayments = mortgageLoanAmount;
-              principalPaid = mortgage.downPayment + mortgageLoanAmount;
-              principalRemaining = 0;
-              const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
-              interestPaid = totalInterestForMortgage;
-              interestRemaining = 0;
-            } else {
-              // Loan hasn't started yet
-              principalRemaining = mortgageLoanAmount;
-              const totalInterestForMortgage = (mortgageLoanAmount * mortgage.interestRate / 100 * mortgage.tenure);
-              interestRemaining = totalInterestForMortgage;
-            }
+            principalRemaining = Math.max(0, principal - principalPaidFromPayments);
+            interestRemaining = Math.max(0, calculation.totalInterest - interestPaid);
           }
 
           return (
