@@ -13,7 +13,7 @@ import Insurance from './src/pages/Insurance';
 import FixedDeposits from './src/pages/FixedDeposits';
 import AffordabilityCalculator from './src/pages/AffordabilityCalculator';
 import RentVsBuyCalculator from './src/pages/RentVsBuyCalculator';
-import PrivacyPolicy from './src/pages/PrivacyPolicy';
+import PrivacyPolicyPage from './src/pages/PrivacyPolicy';
 import TermsOfService from './src/pages/TermsOfService';
 import ProtectedRoute from './src/components/ProtectedRoute';
 import Login from './src/pages/Login';
@@ -39,7 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/affordability-calculator" element={<AffordabilityCalculator />} />
               <Route path="/rent-vs-buy-calculator" element={<RentVsBuyCalculator />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
 
               {/* Protected Routes - Login Required */}

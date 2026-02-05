@@ -8,7 +8,7 @@ import { ChevronDown, ArrowLeft, Wallet, Home as HomeIcon, TrendingUp } from 'lu
 import type { OneTimePayment, PaymentType, Currency, SavedMortgage } from './types/mortgage';
 
 // Import utilities
-import { formatDate, setGlobalCurrency } from './utils/formatting';
+import { formatDate, setGlobalCurrency, formatCurrency } from './utils/formatting';
 import { calculateMonthlyPayment, simulateMonthlyAmortization, simulateBiweeklyAmortization } from './utils/calculations-helpers';
 import { applyRefinanceToCalculator, applyScenarioToCalculator } from './helpers/applyScenario';
 import { exportToExcel } from './utils/excelExport';

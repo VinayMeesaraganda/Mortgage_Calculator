@@ -21,7 +21,7 @@ const StockInvestments: React.FC = () => {
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('INR');
   const [holdings, setHoldings] = useState<StockHolding[]>([]);
   const [isLoadingHoldings, setIsLoadingHoldings] = useState(false);
-  const [isSavingHoldings, setIsSavingHoldings] = useState(false);
+  const [_isSavingHoldings, setIsSavingHoldings] = useState(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isInitialLoadRef = useRef(true);
@@ -31,7 +31,7 @@ const StockInvestments: React.FC = () => {
   const [stocksSortColumn, setStocksSortColumn] = useState<'symbol' | 'shares' | 'avgPrice' | 'currentPrice' | 'gainLoss' | 'dailyPL'>('symbol');
   const [stocksSortDirection, setStocksSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isTransactionsExpanded, setIsTransactionsExpanded] = useState(false);
-  
+
   // Form state for adding new stock or transaction
   const [newStockSymbol, setNewStockSymbol] = useState('');
   const [newStockIsSME, setNewStockIsSME] = useState(false);
@@ -49,7 +49,7 @@ const StockInvestments: React.FC = () => {
   const [addingTransactionToHoldingId, setAddingTransactionToHoldingId] = useState<string | null>(null);
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const [isRefreshingAllPrices, setIsRefreshingAllPrices] = useState(false);
-  
+
   // Edit transaction form state
   const [editTransactionPrice, setEditTransactionPrice] = useState('');
   const [editTransactionQuantity, setEditTransactionQuantity] = useState('');
@@ -119,9 +119,9 @@ const StockInvestments: React.FC = () => {
       setIsSavingHoldings(true);
       await saveStockHoldings(currentUser.uid, holdingsToUse);
       console.log('Saved');
-      logger.info('Stock holdings saved successfully to Firestore', { 
-        userId: currentUser.uid, 
-        count: holdingsToUse.length 
+      logger.info('Stock holdings saved successfully to Firestore', {
+        userId: currentUser.uid,
+        count: holdingsToUse.length
       });
     } catch (error) {
       const err = error as Error;
@@ -147,9 +147,9 @@ const StockInvestments: React.FC = () => {
       try {
         setIsSavingHoldings(true);
         await saveStockHoldings(currentUser.uid, holdings);
-        logger.info('Stock holdings saved successfully to Firestore', { 
-          userId: currentUser.uid, 
-          count: holdings.length 
+        logger.info('Stock holdings saved successfully to Firestore', {
+          userId: currentUser.uid,
+          count: holdings.length
         });
       } catch (error) {
         const err = error as Error;
@@ -173,7 +173,7 @@ const StockInvestments: React.FC = () => {
   // Refresh all stock prices
   const refreshAllPrices = useCallback(async (silent: boolean = false) => {
     if (!silent) setIsRefreshingAllPrices(true);
-    
+
     const stocksToRefresh = holdings.filter(h => !h.manualPrice);
     if (stocksToRefresh.length === 0) {
       if (!silent) warning('No stocks with auto-fetch enabled');
@@ -188,7 +188,7 @@ const StockInvestments: React.FC = () => {
 
       const updatedHoldings = holdings.map(holding => {
         if (holding.manualPrice) return holding;
-        
+
         const result = results.find(r => r.symbol.includes(holding.symbol));
         if (result && result.success) {
           const now = new Date();
@@ -233,15 +233,15 @@ const StockInvestments: React.FC = () => {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0); // Midnight
-      
+
       const msUntilMidnight = tomorrow.getTime() - now.getTime();
-      
+
       let dailyInterval: NodeJS.Timeout | null = null;
-      
+
       const timeout = setTimeout(() => {
         // Refresh prices at midnight to get updated previousClose for new day
         refreshAllPrices(true);
-        
+
         // Then set up daily interval to refresh at midnight every day
         dailyInterval = setInterval(() => {
           refreshAllPrices(true);
@@ -295,11 +295,11 @@ const StockInvestments: React.FC = () => {
       const totalBought = holding.transactions
         .filter(t => t.type === 'buy')
         .reduce((sum, t) => sum + t.quantity, 0);
-      
+
       const totalSold = holding.transactions
         .filter(t => t.type === 'sell')
         .reduce((sum, t) => sum + t.quantity, 0);
-      
+
       const totalQuantity = totalBought - totalSold;
 
       // Calculate average cost basis (FIFO method for simplicity)
@@ -325,7 +325,7 @@ const StockInvestments: React.FC = () => {
       let dailyChange = 0;
       let dailyPL = 0;
       let dailyPLPercent = 0;
-      
+
       // Only calculate Daily P&L if we have previousClose (from API fetch)
       if (previousClose && previousClose > 0) {
         dailyChange = holding.currentPrice - previousClose;
@@ -409,7 +409,7 @@ const StockInvestments: React.FC = () => {
       }
 
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return stocksSortDirection === 'asc' 
+        return stocksSortDirection === 'asc'
           ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue);
       } else {
@@ -436,7 +436,7 @@ const StockInvestments: React.FC = () => {
 
   // Get all transactions from all holdings for the transactions table
   const allTransactions = useMemo(() => {
-    return holdings.flatMap(holding => 
+    return holdings.flatMap(holding =>
       holding.transactions.map(transaction => ({
         ...transaction,
         stockSymbol: holding.symbol,
@@ -455,7 +455,7 @@ const StockInvestments: React.FC = () => {
   // Calculate portfolio totals (only active stocks)
   const portfolioTotals = useMemo(() => {
     const activeHoldings = holdingsSummary.filter(s => s.holding.status === 'active');
-    
+
     const totalInvested = activeHoldings.reduce((sum, s) => sum + s.totalInvested, 0);
     const totalCurrentValue = activeHoldings.reduce((sum, s) => sum + s.currentValue, 0);
     const totalUnrealizedGainLoss = activeHoldings.reduce((sum, s) => sum + s.gainLoss, 0);
@@ -493,7 +493,7 @@ const StockInvestments: React.FC = () => {
 
     // Check if stock already exists
     const existingHoldingIndex = holdings.findIndex(h => h.symbol === symbol);
-    
+
     if (existingHoldingIndex >= 0) {
       // Add transaction to existing stock
       const newTransaction: StockTransaction = {
@@ -506,10 +506,10 @@ const StockInvestments: React.FC = () => {
 
       const updatedHoldings = [...holdings];
       const existingHolding = updatedHoldings[existingHoldingIndex];
-      
+
       // Update transactions
       const updatedTransactions = [...existingHolding.transactions, newTransaction];
-      
+
       // Calculate new status
       const totalBought = updatedTransactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.quantity, 0);
       const totalSold = updatedTransactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.quantity, 0);
@@ -528,7 +528,7 @@ const StockInvestments: React.FC = () => {
         status: newStatus,
         soldDate: newStatus === 'sold' ? newTransactionDate : undefined
       };
-      
+
       setHoldings(updatedHoldings);
       successToast(`Added ${newTransactionType} transaction for ${symbol}`);
       // Save immediately after adding transaction
@@ -568,7 +568,7 @@ const StockInvestments: React.FC = () => {
         transactions: [newTransaction],
         status: 'active'
       };
-      
+
       const updatedHoldings = [...holdings, newHolding];
       setHoldings(updatedHoldings);
       successToast(`Added ${symbol} to portfolio`);
@@ -611,20 +611,20 @@ const StockInvestments: React.FC = () => {
       // Remove transaction from holding
       const updatedTransactions = holding.transactions.filter(t => t.id !== transactionId);
       const updatedPurchases = holding.purchases.filter(p => p.id !== transactionId);
-      
+
       // Recalculate status
       const totalBought = updatedTransactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.quantity, 0);
       const totalSold = updatedTransactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.quantity, 0);
       const newStatus: 'active' | 'sold' = totalBought <= totalSold ? 'sold' : 'active';
 
-      const updatedHoldings = holdings.map(h => 
-        h.id === holdingId 
-          ? { 
-              ...h, 
-              transactions: updatedTransactions,
-              purchases: updatedPurchases,
-              status: newStatus 
-            }
+      const updatedHoldings = holdings.map(h =>
+        h.id === holdingId
+          ? {
+            ...h,
+            transactions: updatedTransactions,
+            purchases: updatedPurchases,
+            status: newStatus
+          }
           : h
       );
       setHoldings(updatedHoldings);
@@ -650,11 +650,13 @@ const StockInvestments: React.FC = () => {
     // Update purchases if it's a buy transaction
     const updatedPurchases = holding.purchases.map(p => {
       if (p.id === transactionId) {
-        return { ...p, ...(updates.type === 'buy' ? {
-          purchaseDate: updates.date || p.purchaseDate,
-          purchasePrice: updates.price !== undefined ? updates.price : p.purchasePrice,
-          quantity: updates.quantity !== undefined ? updates.quantity : p.quantity
-        } : {}) };
+        return {
+          ...p, ...(updates.type === 'buy' ? {
+            purchaseDate: updates.date || p.purchaseDate,
+            purchasePrice: updates.price !== undefined ? updates.price : p.purchasePrice,
+            quantity: updates.quantity !== undefined ? updates.quantity : p.quantity
+          } : {})
+        };
       }
       return p;
     }).filter(p => {
@@ -684,12 +686,12 @@ const StockInvestments: React.FC = () => {
     const updatedHoldings = holdings.map(h =>
       h.id === holdingId
         ? {
-            ...h,
-            transactions: updatedTransactions,
-            purchases: updatedPurchases,
-            status: newStatus,
-            soldDate: newStatus === 'sold' ? (updates.date || holding.soldDate) : undefined
-          }
+          ...h,
+          transactions: updatedTransactions,
+          purchases: updatedPurchases,
+          status: newStatus,
+          soldDate: newStatus === 'sold' ? (updates.date || holding.soldDate) : undefined
+        }
         : h
     );
     setHoldings(updatedHoldings);

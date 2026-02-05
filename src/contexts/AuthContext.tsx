@@ -1,13 +1,13 @@
 // Authentication Context for Firebase Auth
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  User, 
-  createUserWithEmailAndPassword, 
+import {
+  User,
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   updateProfile,
-  updateEmail,
+
   updatePassword,
   deleteUser,
   reauthenticateWithCredential,
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (existingUsername.exists()) {
         throw new Error('Username is already taken');
       }
-      
+
       // Try to create user with generated email
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -113,7 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Store in users collection with UID
       await setDoc(doc(db, 'users', user.uid), userProfileData);
-      
+
       // Also store username lookup for quick username check
       await setDoc(doc(db, 'usernames', usernameKey), {
         uid: user.uid,
