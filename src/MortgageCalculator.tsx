@@ -24,8 +24,6 @@ import SEOContent from './components/SEOContent';
 import EmailCaptureModal from './components/EmailCaptureModal';
 import ViralShareResults from './components/ViralShareResults';
 import LoginModal from './components/LoginModal';
-// import Testimonials from './components/Testimonials';
-// import SocialProofBanner from './components/SocialProofBanner';
 
 import { LoanInputs } from './components/MortgageCalculator/LoanInputs';
 import { ExtraPayments } from './components/MortgageCalculator/ExtraPayments';
@@ -1518,8 +1516,7 @@ const MortgageCalculator: React.FC = () => {
         onClose={() => setShowLoginModal(false)}
       />
 
-      {/* Social Proof Banner */}
-      {/* <SocialProofBanner /> */}
+      
 
       {/* Email Capture Modal */}
       <EmailCaptureModal
@@ -1995,8 +1992,7 @@ const MortgageCalculator: React.FC = () => {
           )
         }
 
-        {/* Testimonials Section */}
-        {/* <Testimonials /> */}
+        
 
         {/* SEO Content Section - Educational content and FAQs for better search rankings */}
         <SEOContent />
