@@ -43,7 +43,7 @@ const StockTransactionsTable: React.FC<StockTransactionsTableProps> = ({
   editTransactionDate,
   setEditTransactionDate,
   editTransactionType,
-  setEditTransactionType,
+
   onStartEditTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
@@ -123,9 +123,8 @@ const StockTransactionsTable: React.FC<StockTransactionsTableProps> = ({
                       return (
                         <tr
                           key={transaction.id}
-                          className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${
-                            transaction.type === 'buy' ? 'bg-green-50/30' : 'bg-red-50/30'
-                          }`}
+                          className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${transaction.type === 'buy' ? 'bg-green-50/30' : 'bg-red-50/30'
+                            }`}
                         >
                           <td className="p-3 text-sm font-semibold text-slate-700">{transaction.date}</td>
                           <td className="p-3">
@@ -133,11 +132,10 @@ const StockTransactionsTable: React.FC<StockTransactionsTableProps> = ({
                           </td>
                           <td className="p-3 text-center">
                             <span
-                              className={`px-2 py-1 rounded text-xs font-bold ${
-                                transaction.type === 'buy'
+                              className={`px-2 py-1 rounded text-xs font-bold ${transaction.type === 'buy'
                                   ? 'bg-green-100 text-green-700'
                                   : 'bg-red-100 text-red-700'
-                              }`}
+                                }`}
                             >
                               {transaction.type.toUpperCase()}
                             </span>

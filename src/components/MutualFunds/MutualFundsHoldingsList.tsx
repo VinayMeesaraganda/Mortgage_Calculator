@@ -133,11 +133,10 @@ const MutualFundsHoldingsList: React.FC<MutualFundsHoldingsListProps> = ({
                   <button
                     onClick={() => handleLoadHistoricalData(holding.schemeCode)}
                     disabled={isLoadingHistorical}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                      historicalDataForScheme === holding.schemeCode
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${historicalDataForScheme === holding.schemeCode
                         ? 'bg-purple-600 text-white shadow-md'
                         : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
-                    }`}
+                      }`}
                     title="View Historical Performance"
                   >
                     {isLoadingHistorical && historicalDataForScheme === holding.schemeCode ? (
@@ -348,10 +347,7 @@ const MutualFundsHoldingsList: React.FC<MutualFundsHoldingsListProps> = ({
                       } else {
                         setInlineAddPurchaseHoldingId(holding.id);
                         setInlineInvestmentAmount('');
-                        setInlinePurchaseDate(() => {
-                          const now = new Date();
-                          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                        });
+                        setInlinePurchaseDate(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`);
                         setInlineUseManualNAV(false);
                         setInlineManualNAV('');
                       }

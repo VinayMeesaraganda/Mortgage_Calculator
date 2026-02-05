@@ -8,7 +8,7 @@ import { ChevronDown, ArrowLeft } from 'lucide-react';
 import type { OneTimePayment, PaymentType, Currency, SavedMortgage } from './types/mortgage';
 
 // Import utilities
-import { formatCurrency, formatDate, setGlobalCurrency } from './utils/formatting';
+import { formatDate, setGlobalCurrency } from './utils/formatting';
 import { calculateMonthlyPayment, simulateMonthlyAmortization, simulateBiweeklyAmortization } from './utils/calculations-helpers';
 import { applyRefinanceToCalculator, applyScenarioToCalculator } from './helpers/applyScenario';
 import { exportToExcel } from './utils/excelExport';
