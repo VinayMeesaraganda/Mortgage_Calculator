@@ -87,161 +87,177 @@ const AffordabilityCalculator: React.FC = () => {
             title="Affordability Calculator"
             subtitle="Estimate how much house you can afford based on your income, debts, and down payment."
         >
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Inputs Section */}
-                    <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h2 className="text-lg font-bold text-slate-800 mb-4">Financial Details</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Annual Gross Income</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">{currencySymbol}</span>
-                                        </div>
-                                        <input
-                                            type="number"
-                                            value={annualIncome}
-                                            onChange={(e) => setAnnualIncome(Number(e.target.value))}
-                                            className="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-                                        />
+                {/* Inputs Section - Spans 4 columns on large screens */}
+                <div className="lg:col-span-4 space-y-6">
+                    {/* Financial Details Card */}
+                    <div className="bg-white rounded-card shadow-card p-6 border border-slate-100">
+                        <h2 className="text-lg font-bold text-brand-dark mb-5 flex items-center gap-2">
+                            Financial Details
+                        </h2>
+
+                        <div className="space-y-5">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Annual Gross Income</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-medium">{currencySymbol}</span>
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1">Total income before taxes</p>
+                                    <input
+                                        type="number"
+                                        value={annualIncome}
+                                        onChange={(e) => setAnnualIncome(Number(e.target.value))}
+                                        className="block w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all font-medium text-slate-900"
+                                    />
                                 </div>
+                                <p className="text-xs text-slate-500 mt-1.5 ml-1">Total income before taxes</p>
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Debts</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">{currencySymbol}</span>
-                                        </div>
-                                        <input
-                                            type="number"
-                                            value={monthlyDebts}
-                                            onChange={(e) => setMonthlyDebts(Number(e.target.value))}
-                                            className="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-                                        />
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Monthly Debts</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-medium">{currencySymbol}</span>
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1">Credit cards, car loans, student loans, etc.</p>
+                                    <input
+                                        type="number"
+                                        value={monthlyDebts}
+                                        onChange={(e) => setMonthlyDebts(Number(e.target.value))}
+                                        className="block w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all font-medium text-slate-900"
+                                    />
                                 </div>
+                                <p className="text-xs text-slate-500 mt-1.5 ml-1">Loans, credit cards, etc.</p>
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Down Payment</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span className="text-slate-500">{currencySymbol}</span>
-                                        </div>
-                                        <input
-                                            type="number"
-                                            value={downPayment}
-                                            onChange={(e) => setDownPayment(Number(e.target.value))}
-                                            className="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-                                        />
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Down Payment</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-medium">{currencySymbol}</span>
                                     </div>
+                                    <input
+                                        type="number"
+                                        value={downPayment}
+                                        onChange={(e) => setDownPayment(Number(e.target.value))}
+                                        className="block w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all font-medium text-slate-900"
+                                    />
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h2 className="text-lg font-bold text-slate-800 mb-4">Loan Assumptions</h2>
+                    {/* Loan Assumptions Card */}
+                    <div className="bg-white rounded-card shadow-card p-6 border border-slate-100">
+                        <h2 className="text-lg font-bold text-brand-dark mb-5">Loan Assumptions</h2>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate (%)</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={interestRate}
-                                        onChange={(e) => setInterestRate(Number(e.target.value))}
-                                        className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-                                    />
-                                </div>
+                        <div className="space-y-5">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Interest Rate (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={interestRate}
+                                    onChange={(e) => setInterestRate(Number(e.target.value))}
+                                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all font-medium text-slate-900"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Loan Term (Years)</label>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Loan Term</label>
+                                <div className="relative">
                                     <select
                                         value={loanTerm}
                                         onChange={(e) => setLoanTerm(Number(e.target.value))}
-                                        className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all font-medium text-slate-900 appearance-none"
                                     >
                                         <option value={15}>15 Years</option>
                                         <option value={20}>20 Years</option>
                                         <option value={30}>30 Years</option>
                                     </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-700 mb-1">Property Tax (%)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={propertyTaxRate}
-                                            onChange={(e) => setPropertyTaxRate(Number(e.target.value))}
-                                            className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm"
-                                        />
+                                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-700 mb-1">HOA (/mo)</label>
-                                        <input
-                                            type="number"
-                                            value={hoaFees}
-                                            onChange={(e) => setHoaFees(Number(e.target.value))}
-                                            className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-green-500 focus:border-green-500 text-sm"
-                                        />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">Property Tax (%)</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={propertyTaxRate}
+                                        onChange={(e) => setPropertyTaxRate(Number(e.target.value))}
+                                        className="block w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-sm font-medium"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">HOA /mo</label>
+                                    <input
+                                        type="number"
+                                        value={hoaFees}
+                                        onChange={(e) => setHoaFees(Number(e.target.value))}
+                                        className="block w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-sm font-medium"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Results Section - Spans 8 columns on large screens */}
+                <div className="lg:col-span-8 space-y-8">
+
+                    {/* Hero Result Card */}
+                    <div className="w-full bg-brand-primary rounded-[32px] shadow-2xl p-8 md:p-10 text-white relative overflow-hidden flex flex-col justify-between min-h-[400px]">
+                        {/* Abstract Background Shapes */}
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 w-80 h-80 bg-brand-accent opacity-10 rounded-full -ml-20 -mb-20 blur-3xl"></div>
+
+                        <div className="relative z-10">
+                            <h2 className="text-blue-100 font-medium text-lg md:text-xl mb-4 tracking-wide">You can afford a home up to</h2>
+
+                            <div className="flex flex-wrap items-baseline gap-2 mb-8">
+                                <span className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight">
+                                    {formatCurrency(maxHomePrice)}
+                                </span>
+                            </div>
+
+                            {/* Key Stats Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 border-t border-white/10">
+                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 md:p-5 border border-white/5 hover:bg-white/15 transition-colors">
+                                    <div className="text-blue-100 text-sm font-medium uppercase tracking-wider mb-2">Monthly Payment</div>
+                                    <div className="text-2xl font-bold">{formatCurrency(monthlyPayment)}</div>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 md:p-5 border border-white/5 hover:bg-white/15 transition-colors">
+                                    <div className="text-blue-100 text-sm font-medium uppercase tracking-wider mb-2">Down Payment</div>
+                                    <div className="text-2xl font-bold">{formatCurrency(downPayment)}</div>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 md:p-5 border border-white/5 hover:bg-white/15 transition-colors">
+                                    <div className="text-blue-100 text-sm font-medium uppercase tracking-wider mb-2">Debt-to-Income</div>
+                                    <div className={`text-2xl font-bold ${dti > 36 ? 'text-brand-accent' : 'text-brand-success'}`}>
+                                        {dti.toFixed(1)}%
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Results Section */}
-                    <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                            <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full -ml-10 -mb-10 blur-2xl"></div>
-
-                            <div className="relative z-10">
-                                <h2 className="text-green-100 font-medium text-lg mb-2">You can afford a home up to</h2>
-                                <div className="text-[clamp(2.1rem,3.6vw,3.4rem)] font-bold mb-6 tracking-tight leading-tight whitespace-nowrap">
-                                    {formatCurrency(maxHomePrice)}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-white/20">
-                                    <div>
-                                        <div className="text-green-200 text-sm mb-1">Monthly Payment</div>
-                                        <div className="text-lg sm:text-xl font-bold whitespace-nowrap">{formatCurrency(monthlyPayment)}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-green-200 text-sm mb-1">Down Payment</div>
-                                        <div className="text-lg sm:text-xl font-bold whitespace-nowrap">{formatCurrency(downPayment)}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-green-200 text-sm mb-1">Debt-to-Income</div>
-                                        <div className="text-lg sm:text-xl font-bold">{dti.toFixed(1)}%</div>
-                                    </div>
-                                </div>
+                    {/* Explanation / Info Card */}
+                    <div className="bg-white rounded-card shadow-card p-8 border border-slate-100">
+                        <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
                             </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h3 className="text-lg font-bold text-slate-800 mb-4">How is this calculated?</h3>
-                            <div className="prose prose-slate text-sm">
-                                <p>
-                                    We use the standard <strong>28/36 rule</strong> used by most lenders:
-                                </p>
-                                <ul>
-                                    <li>
-                                        <strong>Front-end Ratio (28%):</strong> Your monthly housing costs (mortgage + tax + insurance + HOA) shouldn't exceed 28% of your gross monthly income.
-                                    </li>
-                                    <li>
-                                        <strong>Back-end Ratio (36%):</strong> Your total monthly debt payments (housing + credit cards + loans) shouldn't exceed 36% of your gross monthly income.
-                                    </li>
-                                </ul>
-                                <p>
-                                    The calculator takes the lower of these two limits to determine your maximum affordable monthly payment, then works backward to find the home price based on your down payment and interest rate.
+                            <div>
+                                <h3 className="text-lg font-bold text-brand-dark mb-2">How we calculate this</h3>
+                                <p className="text-slate-600 leading-relaxed max-w-2xl">
+                                    We use the <strong>28/36 rule</strong>, a standard used by most lenders.
+                                    This guideline suggests you spend no more than <strong>28%</strong> of your gross monthly income on housing expenses
+                                    and no more than <strong>36%</strong> on total debt. We use the lower of these two limits to estimate your home buying power.
                                 </p>
                             </div>
                         </div>
