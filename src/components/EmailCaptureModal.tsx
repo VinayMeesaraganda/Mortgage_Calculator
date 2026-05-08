@@ -2,6 +2,7 @@
 // Captures user emails for follow-up and marketing
 
 import React, { useState, memo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mail, CheckCircle, Send } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -74,7 +75,7 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[100000] flex items-center justify-center p-4 animate-fadeIn">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-slideUp">
         {/* Header */}
@@ -221,7 +222,8 @@ const EmailCaptureModal: React.FC<EmailCaptureModalProps> = ({ isOpen, onClose, 
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

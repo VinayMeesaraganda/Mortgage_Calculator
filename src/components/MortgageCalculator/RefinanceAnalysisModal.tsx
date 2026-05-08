@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X, TrendingDown, Clock, DollarSign, CheckCircle, AlertTriangle } from 'lucide-react';
 import { DatePicker } from '../DatePicker';
 import { formatCurrency } from '../../utils/formatting';
 
@@ -11,6 +13,9 @@ interface RefinanceData {
   closingCosts: number;
   newTerm: number;
   newExtraPayment: number;
+  _actualRemainingInterest: number;
+  _actualRemainingMonths: number;
+  _actualMonthlyPaymentEquivalent: number;
 }
 
 interface RefinanceCalc {
@@ -35,6 +40,7 @@ interface RefinanceCalc {
 
 interface RefinanceAnalysisModalProps {
   isOpen: boolean;
+  isInline?: boolean;
   onClose: () => void;
   refinanceData: RefinanceData;
   setRefinanceData: React.Dispatch<React.SetStateAction<RefinanceData>>;
@@ -50,436 +56,331 @@ interface RefinanceAnalysisModalProps {
   onApplyRefinance: () => void;
 }
 
+const LABEL = 'block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5';
+const INPUT = 'w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary text-sm bg-white transition-colors';
+
 const RefinanceAnalysisModal: React.FC<RefinanceAnalysisModalProps> = ({
-  isOpen,
-  onClose,
-  refinanceData,
-  setRefinanceData,
-  editingCurrentRate,
-  setEditingCurrentRate,
-  rawCurrentRate,
-  setRawCurrentRate,
-  editingNewRate,
-  setEditingNewRate,
-  rawNewRate,
-  setRawNewRate,
-  refinanceCalc,
-  onApplyRefinance
+  isOpen, isInline = false, onClose, refinanceData, setRefinanceData,
+  editingCurrentRate, setEditingCurrentRate, rawCurrentRate, setRawCurrentRate,
+  editingNewRate, setEditingNewRate, rawNewRate, setRawNewRate,
+  refinanceCalc, onApplyRefinance,
 }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (isOpen) document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 animate-fadeIn"
-      onClick={onClose}
-    >
+  const remainingYears = refinanceData.currentPayoffDate
+    ? (() => {
+        const ms = new Date(refinanceData.currentPayoffDate).getTime() - Date.now();
+        const months = Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24 * 30.44)));
+        return { years: Math.floor(months / 12), months: months % 12 };
+      })()
+    : null;
+
+  const panelContent = (
       <div
-        className="bg-white rounded-lg sm:rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transform transition-all duration-300"
-        onClick={(e) => e.stopPropagation()}
+        className={isInline
+          ? "flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden"
+          : "relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden"
+        }
+        onClick={e => e.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-amber-600 text-white px-3 sm:px-6 py-3 sm:py-4 rounded-t-lg sm:rounded-t-2xl flex items-center justify-between shadow-lg z-10">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-2xl sm:text-3xl">💡</span>
-            <div>
-              <h2 className="text-base sm:text-xl font-bold">Should You Refinance? Let's Find Out</h2>
-              <p className="text-[10px] sm:text-xs text-orange-100 mt-0.5 hidden sm:block">Compare your current loan with new refinancing options — See savings & break-even point</p>
-            </div>
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-display font-bold text-slate-900">Refinance Analysis</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Compare your current loan against a new refinance offer</p>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:text-orange-200 transition-colors text-2xl font-bold w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 flex-shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
             aria-label="Close"
           >
-            ×
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-6">
-          <p className="text-sm text-slate-600 mb-4 italic bg-orange-50 p-3 rounded-lg border border-orange-200">
-            🎯 <strong>Considering refinancing?</strong> Enter your current loan details and new loan offer to see if you'll actually save money, and how long it'll take to break even on closing costs.
-          </p>
+        {/* ── Body ───────────────────────────────────────────────────────────── */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="p-6 space-y-6">
 
-          {/* Input Section */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            {/* Current Loan */}
-            <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
-              <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                <span className="text-xl">📄</span>
-                Current Loan
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Remaining Balance</label>
-                  <input
-                    type="text"
-                    value={refinanceData.remainingBalance.toLocaleString()}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setRefinanceData({ ...refinanceData, remainingBalance: val === '' ? 0 : Number(val) });
-                    }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="$280,000"
-                  />
+            {/* ── Input section ─────────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 min-w-0">
+
+              {/* Current loan */}
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-800 px-4 py-3">
+                  <p className="text-white font-semibold text-sm">Current Loan</p>
+                  <p className="text-slate-400 text-xs mt-0.5">Your existing mortgage details</p>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Current Interest Rate (%)</label>
-                  <input
-                    type="text"
-                    value={editingCurrentRate ? rawCurrentRate : (refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString())}
-                    onChange={(e) => {
-                      setEditingCurrentRate(true);
-                      const cleaned = e.target.value.replace(/[^0-9.]/g, '');
-                      // Prevent multiple decimal points
-                      const parts = cleaned.split('.');
-                      const validValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
-                      setRawCurrentRate(validValue);
-                      if (validValue === '' || validValue === '.') {
-                        setRefinanceData({ ...refinanceData, currentRate: 0 });
-                      } else if (/^\d*\.?\d*$/.test(validValue)) {
-                        const num = Number(validValue);
-                        if (!isNaN(num) && num >= 0) {
-                          setRefinanceData({ ...refinanceData, currentRate: num });
-                        }
-                      }
-                    }}
-                    onFocus={() => {
-                      setEditingCurrentRate(true);
-                      setRawCurrentRate(refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString());
-                    }}
-                    onBlur={() => {
-                      setEditingCurrentRate(false);
-                      setRawCurrentRate('');
-                    }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="7.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Current Projected Payoff Date
-                    <span className="text-orange-600 ml-1">*</span>
-                  </label>
-                  <DatePicker
-                    value={refinanceData.currentPayoffDate}
-                    onChange={(date) => setRefinanceData({ ...refinanceData, currentPayoffDate: date })}
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    📋 Check your mortgage statement - when will it be paid off?
-                    {refinanceData.currentPayoffDate && (() => {
-                      const dateParts = refinanceData.currentPayoffDate.split('-');
-                      const year = parseInt(dateParts[0]);
-                      const month = parseInt(dateParts[1]);
-                      const day = dateParts.length > 2 ? parseInt(dateParts[2]) : 1;
-                      const payoffDate = new Date(year, month - 1, day);
-                      const today = new Date();
-                      const months = Math.max(0, (payoffDate.getFullYear() - today.getFullYear()) * 12 +
-                        (payoffDate.getMonth() - today.getMonth()));
-                      const years = Math.floor(months / 12);
-                      const remainingMonths = months % 12;
-                      return (
-                        <span className="block text-green-600 font-semibold mt-1">
-                          {years > 0 && `${years} year${years > 1 ? 's' : ''}`}
-                          {years > 0 && remainingMonths > 0 && ', '}
-                          {remainingMonths > 0 && `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`}
-                          {' remaining'}
+                <div className="p-4 space-y-4">
+                  <div>
+                    <label className={LABEL}>Remaining Balance</label>
+                    <input type="text" className={INPUT}
+                      value={refinanceData.remainingBalance.toLocaleString()}
+                      onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setRefinanceData(p => ({ ...p, remainingBalance: v === '' ? 0 : Number(v) })); }}
+                      placeholder="$280,000" />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Current Interest Rate</label>
+                    <div className="relative">
+                      <input type="text" className={INPUT}
+                        value={editingCurrentRate ? rawCurrentRate : (refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString())}
+                        onChange={e => {
+                          setEditingCurrentRate(true);
+                          const c = e.target.value.replace(/[^0-9.]/g, '').replace(/^(\d*\.?\d*).*/, '$1');
+                          setRawCurrentRate(c);
+                          const n = Number(c);
+                          if (!isNaN(n) && n >= 0) setRefinanceData(p => ({ ...p, currentRate: n }));
+                        }}
+                        onFocus={() => { setEditingCurrentRate(true); setRawCurrentRate(refinanceData.currentRate === 0 ? '' : refinanceData.currentRate.toString()); }}
+                        onBlur={() => { setEditingCurrentRate(false); setRawCurrentRate(''); }}
+                        placeholder="7.5" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={LABEL}>
+                      Projected Payoff Date
+                      {remainingYears && (
+                        <span className="ml-2 normal-case text-emerald-600 font-medium">
+                          — {remainingYears.years > 0 ? `${remainingYears.years}y ` : ''}{remainingYears.months > 0 ? `${remainingYears.months}m ` : ''}remaining
                         </span>
-                      );
-                    })()}
-                  </p>
+                      )}
+                    </label>
+                    <DatePicker
+                      value={refinanceData.currentPayoffDate}
+                      onChange={date => setRefinanceData(p => ({ ...p, currentPayoffDate: date }))}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Find this on your mortgage statement</p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Extra Payment / month (optional)</label>
+                    <input type="text" className={INPUT}
+                      value={refinanceData.currentExtraPayment > 0 ? refinanceData.currentExtraPayment.toLocaleString() : ''}
+                      onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setRefinanceData(p => ({ ...p, currentExtraPayment: v === '' ? 0 : Number(v) })); }}
+                      placeholder="$0" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Future Extra Payment (Optional)</label>
-                  <input
-                    type="text"
-                    value={refinanceData.currentExtraPayment > 0 ? refinanceData.currentExtraPayment.toLocaleString() : ''}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setRefinanceData({ ...refinanceData, currentExtraPayment: val === '' ? 0 : Number(val) });
-                    }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="$0 (if planning to add)"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Will you make ADDITIONAL extras going forward?
-                  </p>
+              </div>
+
+              {/* New refinance loan */}
+              <div className="rounded-2xl border border-brand-primary/30 overflow-hidden">
+                <div className="bg-brand-primary px-4 py-3">
+                  <p className="text-white font-semibold text-sm">New Refinance Offer</p>
+                  <p className="text-blue-100 text-xs mt-0.5">Enter your lender's new terms</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div>
+                    <label className={LABEL}>New Interest Rate</label>
+                    <div className="relative">
+                      <input type="text" className={INPUT}
+                        value={editingNewRate ? rawNewRate : (refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString())}
+                        onChange={e => {
+                          setEditingNewRate(true);
+                          const c = e.target.value.replace(/[^0-9.]/g, '').replace(/^(\d*\.?\d*).*/, '$1');
+                          setRawNewRate(c);
+                          const n = Number(c);
+                          if (!isNaN(n) && n >= 0) setRefinanceData(p => ({ ...p, newRate: n }));
+                        }}
+                        onFocus={() => { setEditingNewRate(true); setRawNewRate(refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString()); }}
+                        onBlur={() => { setEditingNewRate(false); setRawNewRate(''); }}
+                        placeholder="6.0" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Closing Costs</label>
+                    <input type="text" className={INPUT}
+                      value={refinanceData.closingCosts.toLocaleString()}
+                      onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setRefinanceData(p => ({ ...p, closingCosts: v === '' ? 0 : Number(v) })); }}
+                      placeholder="$3,500" />
+                    <p className="text-xs text-slate-400 mt-1">Typical range: $2,000 – $6,000</p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>New Loan Term</label>
+                    <div className="relative">
+                      <input type="text" className={INPUT}
+                        value={refinanceData.newTerm}
+                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setRefinanceData(p => ({ ...p, newTerm: v === '' ? 0 : Number(v) })); }}
+                        placeholder="30" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">yrs</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Extra Payment / month (optional)</label>
+                    <input type="text" className={INPUT}
+                      value={refinanceData.newExtraPayment > 0 ? refinanceData.newExtraPayment.toLocaleString() : ''}
+                      onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setRefinanceData(p => ({ ...p, newExtraPayment: v === '' ? 0 : Number(v) })); }}
+                      placeholder="$0" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* New Refinance Loan */}
-            <div className="bg-orange-50 rounded-xl p-4 border-2 border-orange-200">
-              <h3 className="text-sm font-bold text-orange-800 mb-3 flex items-center gap-2">
-                <span className="text-xl">✨</span>
-                New Refinance
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">New Interest Rate (%)</label>
-                  <input
-                    type="text"
-                    value={editingNewRate ? rawNewRate : (refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString())}
-                    onChange={(e) => {
-                      setEditingNewRate(true);
-                      const cleaned = e.target.value.replace(/[^0-9.]/g, '');
-                      // Prevent multiple decimal points
-                      const parts = cleaned.split('.');
-                      const validValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
-                      setRawNewRate(validValue);
-                      if (validValue === '' || validValue === '.') {
-                        setRefinanceData({ ...refinanceData, newRate: 0 });
-                      } else if (/^\d*\.?\d*$/.test(validValue)) {
-                        const num = Number(validValue);
-                        if (!isNaN(num) && num >= 0) {
-                          setRefinanceData({ ...refinanceData, newRate: num });
-                        }
-                      }
-                    }}
-                    onFocus={() => {
-                      setEditingNewRate(true);
-                      setRawNewRate(refinanceData.newRate === 0 ? '' : refinanceData.newRate.toString());
-                    }}
-                    onBlur={() => {
-                      setEditingNewRate(false);
-                      setRawNewRate('');
-                    }}
-                    className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="6.0"
-                  />
+            {/* ── Verdict ───────────────────────────────────────────────────── */}
+            <div className={`rounded-2xl border-2 p-5 ${refinanceCalc.worthIt ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3">
+                  {refinanceCalc.worthIt
+                    ? <CheckCircle className="w-8 h-8 text-emerald-600 flex-shrink-0" />
+                    : <AlertTriangle className="w-8 h-8 text-amber-600 flex-shrink-0" />}
+                  <div>
+                    <h3 className={`text-lg font-bold ${refinanceCalc.worthIt ? 'text-emerald-800' : 'text-amber-800'}`}>
+                      {refinanceCalc.worthIt ? 'Refinancing looks beneficial' : 'Consider carefully'}
+                    </h3>
+                    <p className="text-sm text-slate-600 mt-0.5">
+                      {refinanceCalc.worthIt
+                        ? `Break-even in ${refinanceCalc.breakEvenYears.toFixed(1)} years — you stay ahead after that.`
+                        : `Break-even takes ${refinanceCalc.breakEvenYears.toFixed(1)} years — weigh against your plans.`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Closing Costs</label>
-                  <input
-                    type="text"
-                    value={refinanceData.closingCosts.toLocaleString()}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setRefinanceData({ ...refinanceData, closingCosts: val === '' ? 0 : Number(val) });
-                    }}
-                    className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="$3,500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">New Loan Term (years)</label>
-                  <input
-                    type="text"
-                    value={refinanceData.newTerm}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setRefinanceData({ ...refinanceData, newTerm: val === '' ? 0 : Number(val) });
-                    }}
-                    className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Extra Payment (Optional)</label>
-                  <input
-                    type="text"
-                    value={refinanceData.newExtraPayment > 0 ? refinanceData.newExtraPayment.toLocaleString() : ''}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setRefinanceData({ ...refinanceData, newExtraPayment: val === '' ? 0 : Number(val) });
-                    }}
-                    className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
-                    placeholder="$0 (if planning extras)"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Will you make extra payments on new loan?
-                  </p>
-                </div>
+                <button
+                  onClick={onApplyRefinance}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-blue-700 text-white text-sm font-semibold shadow-soft hover:shadow-hover transition-all flex-shrink-0"
+                >
+                  Apply to Calculator
+                </button>
+              </div>
+
+              {/* 3 KPI tiles */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  {
+                    icon: <Clock className="w-5 h-5 text-slate-600" />,
+                    value: `${refinanceCalc.breakEvenYears.toFixed(1)} yrs`,
+                    sub: `${Math.ceil(refinanceCalc.breakEvenMonths)} months`,
+                    label: 'Break-even point',
+                    bg: 'bg-white',
+                  },
+                  {
+                    icon: <TrendingDown className="w-5 h-5 text-emerald-600" />,
+                    value: formatCurrency(refinanceCalc.monthlySavings),
+                    sub: 'per month',
+                    label: 'Monthly savings',
+                    bg: 'bg-white',
+                  },
+                  {
+                    icon: <DollarSign className="w-5 h-5 text-blue-600" />,
+                    value: formatCurrency(Math.abs(refinanceCalc.totalSavings)),
+                    sub: refinanceCalc.totalSavings > 0 ? 'over loan life' : 'extra cost',
+                    label: refinanceCalc.totalSavings > 0 ? 'Total savings' : 'Total extra cost',
+                    bg: 'bg-white',
+                  },
+                ].map((tile, i) => (
+                  <div key={i} className={`${tile.bg} rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3`}>
+                    <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">{tile.icon}</div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 leading-none mb-1">{tile.label}</p>
+                      <p className="text-xl font-bold font-mono tabular-nums text-slate-900 leading-tight">{tile.value}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{tile.sub}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
 
-          {/* Results - Break-even Analysis */}
-          <div className={`p-4 rounded-xl mb-4 border-2 ${refinanceCalc.worthIt
-            ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
-            : 'bg-gradient-to-br from-red-50 to-rose-50 border-red-300'
-            }`}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold flex items-center gap-2">
+            {/* ── Comparison table ──────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-slate-200 overflow-x-auto">
+              <div className="grid grid-cols-4 bg-slate-50 border-b border-slate-200 min-w-[560px]">
+                {['Metric', 'Current Loan', 'Refinanced Loan', 'Difference'].map((h, i) => (
+                  <div key={i} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 ${i > 0 ? 'border-l border-slate-200 text-center' : ''}`}>{h}</div>
+                ))}
+              </div>
+              {[
+                {
+                  label: 'Monthly Payment',
+                  current: formatCurrency(refinanceCalc.currentMonthlyTotal),
+                  new: formatCurrency(refinanceCalc.newMonthlyTotal),
+                  diff: refinanceCalc.currentMonthlyTotal - refinanceCalc.newMonthlyTotal,
+                },
+                {
+                  label: 'Total Interest',
+                  current: formatCurrency(refinanceCalc.currentTotalInterest),
+                  new: formatCurrency(refinanceCalc.newTotalInterest),
+                  diff: refinanceCalc.currentTotalInterest - refinanceCalc.newTotalInterest,
+                },
+                {
+                  label: 'Total Paid',
+                  current: formatCurrency(refinanceCalc.currentTotalPayments),
+                  new: formatCurrency(refinanceCalc.newTotalPayments),
+                  diff: refinanceCalc.currentTotalPayments - refinanceCalc.newTotalPayments,
+                },
+                {
+                  label: 'Payoff Time',
+                  current: `${(refinanceCalc.remainingMonths / 12).toFixed(1)} yrs`,
+                  new: `${(refinanceCalc.actualNewMonths / 12).toFixed(1)} yrs`,
+                  diff: refinanceCalc.remainingMonths - refinanceCalc.actualNewMonths,
+                  unitLabel: 'months',
+                },
+                {
+                  label: 'Closing Costs',
+                  current: '—',
+                  new: formatCurrency(refinanceData.closingCosts),
+                  diff: -refinanceData.closingCosts,
+                  isCost: true,
+                },
+              ].map((row, i) => (
+                <div key={i} className={`grid grid-cols-4 border-b border-slate-100 last:border-0 min-w-[560px] ${i % 2 === 0 ? '' : 'bg-slate-50/50'}`}>
+                  <div className="px-4 py-3 text-sm font-medium text-slate-700">{row.label}</div>
+                  <div className="px-4 py-3 text-sm font-semibold text-slate-800 text-center border-l border-slate-100 tabular-nums">{row.current}</div>
+                  <div className="px-4 py-3 text-sm font-semibold text-brand-primary text-center border-l border-slate-100 tabular-nums">{row.new}</div>
+                  <div className={`px-4 py-3 text-sm font-semibold text-center border-l border-slate-100 tabular-nums ${row.isCost ? 'text-red-500' : row.diff > 0 ? 'text-emerald-600' : row.diff < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                    {row.isCost
+                      ? `−${formatCurrency(refinanceData.closingCosts)}`
+                      : row.diff === 0 ? 'No change'
+                      : row.diff > 0
+                        ? `+${row.unitLabel ? `${Math.abs(row.diff / 30.44 / 12).toFixed(1)} yrs` : formatCurrency(row.diff)}`
+                        : `−${row.unitLabel ? `${Math.abs(row.diff / 30.44 / 12).toFixed(1)} yrs` : formatCurrency(Math.abs(row.diff))}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recommendation */}
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-700 mb-2">Recommendation</p>
+              <div className="text-xs text-slate-600 space-y-1 leading-relaxed">
                 {refinanceCalc.worthIt ? (
                   <>
-                    <span className="text-2xl">✅</span>
-                    <span className="text-green-800">Refinancing Makes Sense!</span>
+                    <p>Refinancing is recommended. You will break even in <strong>{refinanceCalc.breakEvenYears.toFixed(1)} years</strong> and save <strong>{formatCurrency(refinanceCalc.monthlySavings)}/month</strong> from that point forward.</p>
+                    {refinanceCalc.breakEvenMonths < 24 && <p className="text-emerald-700 font-medium">The short break-even period makes this a strong candidate.</p>}
                   </>
                 ) : (
                   <>
-                    <span className="text-2xl">⚠️</span>
-                    <span className="text-red-800">Consider Carefully</span>
+                    <p>Refinancing may not be worth it in your situation.</p>
+                    {refinanceCalc.breakEvenMonths > refinanceCalc.remainingMonths && (
+                      <p>You would not break even before the current loan pays off ({Math.ceil(refinanceCalc.breakEvenMonths)} months needed vs. {refinanceCalc.remainingMonths} remaining).</p>
+                    )}
+                    <p>Consider negotiating lower closing costs or waiting for a larger rate drop.</p>
                   </>
                 )}
-              </h3>
-
-              {/* Apply to Main Calculator - Visible Location */}
-              <button
-                onClick={onApplyRefinance}
-                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors shadow-md cursor-pointer"
-              >
-                <span className="text-sm font-bold whitespace-nowrap">🚀 Apply to Calculator</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div className="text-center p-3 bg-orange-50/30 rounded-lg border border-orange-200">
-                <div className="text-2xl sm:text-3xl font-bold text-orange-600 mb-1 break-words">
-                  {refinanceCalc.breakEvenYears.toFixed(1)}
-                </div>
-                <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">Years to Break Even</div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  ({Math.ceil(refinanceCalc.breakEvenMonths)} months)
-                </div>
-              </div>
-              <div className="text-center p-3 bg-green-50/30 rounded-lg border border-green-200">
-                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-1 break-words">
-                  {formatCurrency(refinanceCalc.monthlySavings)}
-                </div>
-                <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">Monthly Savings</div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  Lower payment
-                </div>
-              </div>
-              <div className="text-center p-3 bg-blue-50/30 rounded-lg border border-blue-200">
-                <div className="text-2xl sm:text-3xl font-bold text-blue-600 mb-1 break-words">
-                  {formatCurrency(Math.abs(refinanceCalc.totalSavings))}
-                </div>
-                <div className="text-xs text-slate-600 uppercase tracking-wide font-semibold">
-                  {refinanceCalc.totalSavings > 0 ? 'Total Savings' : 'Extra Cost'}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {refinanceCalc.totalSavings > 0 ? 'Over loan life' : 'Due to longer term'}
-                </div>
               </div>
             </div>
-          </div>
 
-          {/* Detailed Comparison Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="border-b-2 border-orange-200">
-                  <th className="text-left p-3 font-semibold text-slate-700 bg-slate-50">Metric</th>
-                  <th className="p-3 font-semibold text-slate-700 bg-slate-100 border-l-2 border-slate-200">Current Loan</th>
-                  <th className="p-3 font-semibold text-orange-700 bg-orange-50 border-l-2 border-orange-200">Refinanced Loan</th>
-                  <th className="p-3 font-semibold text-blue-700 bg-blue-50 border-l-2 border-blue-200">Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <td className="p-3 text-slate-600 font-medium">
-                    Monthly Payment
-                    {(refinanceData.currentExtraPayment > 0 || refinanceData.newExtraPayment > 0) && (
-                      <div className="text-[10px] text-slate-500">(Base + Extra)</div>
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-bold text-slate-800 bg-slate-50">
-                    {formatCurrency(refinanceCalc.currentMonthlyTotal)}
-                    {refinanceData.currentExtraPayment > 0 && (
-                      <div className="text-[10px] font-normal text-slate-600">
-                        {formatCurrency(refinanceCalc.currentPayment)} + {formatCurrency(refinanceData.currentExtraPayment)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-bold text-orange-700 bg-orange-50/30">
-                    {formatCurrency(refinanceCalc.newMonthlyTotal)}
-                    {refinanceData.newExtraPayment > 0 && (
-                      <div className="text-[10px] font-normal text-slate-600">
-                        {formatCurrency(refinanceCalc.newPayment)} + {formatCurrency(refinanceData.newExtraPayment)}
-                      </div>
-                    )}
-                  </td>
-                  <td className={`p-3 text-center font-bold ${refinanceCalc.currentMonthlyTotal > refinanceCalc.newMonthlyTotal ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                    {refinanceCalc.currentMonthlyTotal > refinanceCalc.newMonthlyTotal
-                      ? `💚 Save ${formatCurrency(refinanceCalc.currentMonthlyTotal - refinanceCalc.newMonthlyTotal)}`
-                      : `❌ Pay ${formatCurrency(refinanceCalc.newMonthlyTotal - refinanceCalc.currentMonthlyTotal)} more`
-                    }
-                  </td>
-                </tr>
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <td className="p-3 text-slate-600 font-medium">Total Interest Paid</td>
-                  <td className="p-3 text-center font-bold text-slate-800 bg-slate-50">{formatCurrency(refinanceCalc.currentTotalInterest)}</td>
-                  <td className="p-3 text-center font-bold text-orange-700 bg-orange-50/30">{formatCurrency(refinanceCalc.newTotalInterest)}</td>
-                  <td className={`p-3 text-center font-bold ${refinanceCalc.interestSavings > 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                    {refinanceCalc.interestSavings > 0
-                      ? `💚 Save ${formatCurrency(refinanceCalc.interestSavings)}`
-                      : `❌ Pay ${formatCurrency(Math.abs(refinanceCalc.interestSavings))} more`
-                    }
-                  </td>
-                </tr>
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <td className="p-3 text-slate-600 font-medium">Total Amount Paid</td>
-                  <td className="p-3 text-center font-bold text-slate-800 bg-slate-50">{formatCurrency(refinanceCalc.currentTotalPayments)}</td>
-                  <td className="p-3 text-center font-bold text-orange-700 bg-orange-50/30">{formatCurrency(refinanceCalc.newTotalPayments)}</td>
-                  <td className={`p-3 text-center font-bold ${refinanceCalc.totalSavings > 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                    {refinanceCalc.totalSavings > 0
-                      ? `💚 Save ${formatCurrency(refinanceCalc.totalSavings)}`
-                      : `❌ Pay ${formatCurrency(Math.abs(refinanceCalc.totalSavings))} more`
-                    }
-                  </td>
-                </tr>
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <td className="p-3 text-slate-600 font-medium">Time to Pay Off</td>
-                  <td className="p-3 text-center font-bold text-slate-800 bg-slate-50">
-                    {(refinanceCalc.remainingMonths / 12).toFixed(1)} years
-                    {refinanceData.currentExtraPayment > 0 && (
-                      <div className="text-[10px] font-normal text-green-600">with extras</div>
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-bold text-orange-700 bg-orange-50/30">
-                    {(refinanceCalc.actualNewMonths / 12).toFixed(1)} years
-                    {refinanceData.newExtraPayment > 0 && (
-                      <div className="text-[10px] font-normal text-green-600">with extras</div>
-                    )}
-                  </td>
-                  <td className={`p-3 text-center font-bold ${refinanceCalc.timeDifference < 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                    {refinanceCalc.timeDifference < 0
-                      ? `💚 ${Math.abs(refinanceCalc.timeDifference).toFixed(1)} years faster`
-                      : `❌ ${refinanceCalc.timeDifference.toFixed(1)} years longer`
-                    }
-                  </td>
-                </tr>
-                <tr className="bg-orange-100 border-t-2 border-orange-300">
-                  <td className="p-3 text-orange-800 font-bold">Closing Costs</td>
-                  <td className="p-3 text-center text-slate-500">—</td>
-                  <td className="p-3 text-center font-bold text-orange-700">{formatCurrency(refinanceData.closingCosts)}</td>
-                  <td className="p-3 text-center font-bold text-red-700">Cost</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
-
-          {/* Recommendations */}
-          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-            <h4 className="text-sm font-bold text-blue-800 mb-2">💡 Recommendation</h4>
-            <div className="text-xs text-slate-700 space-y-1">
-              {refinanceCalc.worthIt ? (
-                <>
-                  <p>✅ <strong>Refinancing is recommended!</strong> You'll break even in {refinanceCalc.breakEvenYears.toFixed(1)} years.</p>
-                  <p>• Save {formatCurrency(refinanceCalc.monthlySavings)} per month</p>
-                  <p>• Total savings: {formatCurrency(refinanceCalc.totalSavings)} over the life of the loan</p>
-                  {refinanceCalc.breakEvenMonths < 24 && <p>• Quick break-even point makes this a strong candidate!</p>}
-                </>
-              ) : (
-                <>
-                  <p>⚠️ <strong>Refinancing may not be worth it.</strong></p>
-                  {refinanceCalc.breakEvenMonths > refinanceCalc.remainingMonths && (
-                    <p>• You won't break even before the loan is paid off ({Math.ceil(refinanceCalc.breakEvenMonths)} months needed)</p>
-                  )}
-                  {refinanceCalc.totalSavings < 0 && (
-                    <p>• You'll pay {formatCurrency(Math.abs(refinanceCalc.totalSavings))} more due to the longer term and closing costs</p>
-                  )}
-                  <p>• Consider staying with your current loan or negotiating lower closing costs</p>
-                </>
-              )}
-            </div>
-          </div>
-
         </div>
       </div>
-    </div>
+  );
+
+  if (isInline) return panelContent;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 lg:p-8"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Refinance analysis"
+    >
+      {panelContent}
+    </div>,
+    document.body
   );
 };
 

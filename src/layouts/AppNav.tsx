@@ -27,7 +27,7 @@ const AppNav: React.FC<AppNavProps> = ({ selectedCurrency, onCurrencyChange }) =
     <header className="sticky top-0 z-50 border-b border-brand-border bg-white/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-4">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to={currentUser ? '/dashboard' : '/'} className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-brand-primary text-white flex items-center justify-center font-bold">
               PF
             </div>

@@ -1,5 +1,6 @@
 // Login/Signup Modal Component
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, User, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { INPUT_STYLE } from '../constants/styles';
@@ -96,7 +97,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess }) =
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -320,7 +321,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess }) =
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

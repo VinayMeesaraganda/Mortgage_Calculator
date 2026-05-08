@@ -69,6 +69,7 @@ export async function saveMortgages(
         propertyTaxPeriod: mortgage.propertyTaxPeriod || 'year',
         homeInsurance: typeof mortgage.homeInsurance === 'number' ? mortgage.homeInsurance : 0,
         homeInsurancePeriod: mortgage.homeInsurancePeriod || 'year',
+        pmiAmount: typeof mortgage.pmiAmount === 'number' ? mortgage.pmiAmount : 0,
         hoaFees: typeof mortgage.hoaFees === 'number' ? mortgage.hoaFees : 0
       })),
       updatedAt: new Date().toISOString()

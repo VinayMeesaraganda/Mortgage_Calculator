@@ -2,7 +2,8 @@
 // This file demonstrates the clean architecture using separated modules
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronDown, ArrowLeft, Wallet, Home as HomeIcon, TrendingUp } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { ChevronDown, ArrowLeft, RefreshCw } from 'lucide-react';
 
 // Import types
 import type { OneTimePayment, PaymentType, Currency, SavedMortgage } from './types/mortgage';
@@ -22,7 +23,6 @@ import { useMortgageCalculations } from './hooks/useMortgageCalculations';
 // Import components
 import SEOContent from './components/SEOContent';
 import EmailCaptureModal from './components/EmailCaptureModal';
-import ViralShareResults from './components/ViralShareResults';
 import LoginModal from './components/LoginModal';
 
 import { LoanInputs } from './components/MortgageCalculator/LoanInputs';
@@ -30,18 +30,17 @@ import { ExtraPayments } from './components/MortgageCalculator/ExtraPayments';
 import { PropertyDetails } from './components/MortgageCalculator/PropertyDetails';
 import { Stepper } from './components/Stepper';
 import { StickySummary } from './components/MortgageCalculator/StickySummary';
-import MortgageHeader from './components/MortgageCalculator/MortgageHeader';
+import CurrencySelector from './components/CurrencySelector';
+import ConvertToInvestmentModal, { type RentalSetup } from './components/Dashboard/ConvertToInvestmentModal';
 import SaveMortgageModal from './components/MortgageCalculator/SaveMortgageModal';
-import PrimarySummaryCards from './components/MortgageCalculator/PrimarySummaryCards';
-import InvestmentSummaryCard from './components/MortgageCalculator/InvestmentSummaryCard';
+import LoanSummary from './components/MortgageCalculator/LoanSummary';
+import InvestmentOverlay from './components/MortgageCalculator/InvestmentOverlay';
+import { InvestmentDetails } from './components/MortgageCalculator/InvestmentDetails';
 import PaymentPlanComparison from './components/MortgageCalculator/PaymentPlanComparison';
 import AmortizationOverview from './components/MortgageCalculator/AmortizationOverview';
-import MortgageTracker from './components/MortgageCalculator/MortgageTracker';
 import ScenarioComparisonModal from './components/MortgageCalculator/ScenarioComparisonModal';
 import RefinanceAnalysisModal from './components/MortgageCalculator/RefinanceAnalysisModal';
 import ExportShareSection from './components/MortgageCalculator/ExportShareSection';
-import MortgageEducationalSection from './components/MortgageCalculator/MortgageEducationalSection';
-import MetricCard from './components/ui/MetricCard';
 
 // Import constants
 import { CARD_STYLE, CARD_SHADOW } from './constants/styles';
@@ -57,26 +56,39 @@ import {
   subscribeToMortgages
 } from './services/mortgageService';
 
-const MortgageCalculator: React.FC = () => {
+import type { MortgageView } from './pages/MortgageHub';
+
+interface MortgageCalculatorProps {
+  activeView?: MortgageView;
+  onViewChange?: (view: MortgageView) => void;
+}
+
+const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'calculator', onViewChange }) => {
   const { currentUser } = useAuth();
   const { success, error: showError, warning } = useToast();
+  const [searchParams] = useSearchParams();
 
   // Mortgage tracking state
   const [savedMortgages, setSavedMortgages] = useState<SavedMortgage[]>([]);
   const [selectedMortgageId, setSelectedMortgageId] = useState<string | null>(null);
   const [isLoadingMortgages, setIsLoadingMortgages] = useState(false);
-  const [isSavingMortgage, setIsSavingMortgage] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [showSaveMortgageModal, setShowSaveMortgageModal] = useState(false);
+  const [convertingMortgage, setConvertingMortgage] = useState<SavedMortgage | null>(null);
   const [newMortgageName, setNewMortgageName] = useState('');
-  const [editingMortgageName, setEditingMortgageName] = useState<string | null>(null);
-  const [editingMortgageNameValue, setEditingMortgageNameValue] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [propertyType, setPropertyType] = useState<'primary' | 'investment'>('primary');
 
   const [currentStep, setCurrentStep] = useState(0);
 
-  const steps = ['Loan Details', 'Property Expenses', 'Extra Payments'];
+  const steps = propertyType === 'investment'
+    ? ['Loan Details', 'Property Costs', 'Rental Income', 'Extra Payments']
+    : ['Loan Details', 'Property Costs', 'Extra Payments'];
+
+  // Clamp currentStep when switching modes (investment has 4 steps, primary has 3)
+  useEffect(() => {
+    const maxStep = propertyType === 'investment' ? 3 : 2;
+    setCurrentStep(prev => Math.min(prev, maxStep));
+  }, [propertyType]);
 
   const mortgagePortfolioSummary = useMemo(() => {
     if (savedMortgages.length === 0) return null;
@@ -226,6 +238,9 @@ const MortgageCalculator: React.FC = () => {
   const isInitialLoadRef = useRef(true);
   const lastLocalChangeRef = useRef<number>(0);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // True only when a user action has produced unsaved local changes.
+  // Subscription-driven state changes must never set this — that's what breaks the loop.
+  const pendingLocalSaveRef = useRef(false);
 
   // Use custom hooks for number inputs - eliminates ~150 lines of repetitive code
   const homeValueInput = useNumberInput(400000, 400000, 'homeValue');
@@ -250,8 +265,11 @@ const MortgageCalculator: React.FC = () => {
   const [oneTimePayments, setOneTimePayments] = useState<OneTimePayment[]>([]);
   const [oneTimePaymentsExpanded, setOneTimePaymentsExpanded] = useState(false);
 
+  // Derived from parent view — no local state needed
+  const showScenarioComparison = activeView === 'compare';
+  const showRefinanceAnalysis = activeView === 'refinance';
+
   // Loan Scenario Comparison
-  const [showScenarioComparison, setShowScenarioComparison] = useState(false);
   const [scenarioB, setScenarioB] = useState({
     homeValue: 400000,
     downPayment: 80000,
@@ -268,16 +286,20 @@ const MortgageCalculator: React.FC = () => {
   });
 
   // Refinance Analysis
-  const [showRefinanceAnalysis, setShowRefinanceAnalysis] = useState(false);
   const [refinanceData, setRefinanceData] = useState({
     remainingBalance: 280000,
     currentRate: 7.5,
-    currentPayoffDate: '', // Projected payoff date from mortgage statement (YYYY-MM-DD format)
-    currentExtraPayment: 0, // Additional extra payment going forward
+    currentPayoffDate: '',
+    currentExtraPayment: 0,
     newRate: 6.0,
     closingCosts: 3500,
     newTerm: 30,
-    newExtraPayment: 0 // Extra payment on new loan
+    newExtraPayment: 0,
+    // Hidden fields populated from the actual schedule — ensures bi-weekly + extra
+    // payments are reflected correctly without re-simulating monthly
+    _actualRemainingInterest: 0,
+    _actualRemainingMonths: 0,
+    _actualMonthlyPaymentEquivalent: 0,
   });
 
   // Track raw input values for interest rate fields to allow proper decimal entry
@@ -382,6 +404,70 @@ const MortgageCalculator: React.FC = () => {
   const schedule = calculations.schedule;
   const yearsToPayoff = calculations.yearsToPayoff;
 
+  // Pre-fill refinance modal with current loan data when it opens.
+  // Uses the actual amortisation schedule so bi-weekly payments and extra payments
+  // are fully reflected without needing to re-simulate.
+  useEffect(() => {
+    if (!showRefinanceAnalysis || !schedule.length) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    let principalPaid = 0;
+    let interestPaid = 0;
+    schedule.forEach(item => {
+      const d = new Date(item.date);
+      d.setHours(0, 0, 0, 0);
+      if (d >= start && d <= today) {
+        principalPaid += item.principal;
+        interestPaid += item.interest;
+      }
+    });
+
+    const remainingBalance = Math.max(0, Math.round(loanAmount - principalPaid));
+    const actualRemainingInterest = Math.max(0, Math.round(totalInterest - interestPaid));
+
+    // Remaining months: derived from the actual payoff date which already accounts
+    // for payment frequency and extra payments
+    const payoffDateStr = endDate ? (endDate.length === 7 ? `${endDate}-01` : endDate) : '';
+    let actualRemainingMonths = 360;
+    if (payoffDateStr) {
+      const parts = payoffDateStr.split('-');
+      const pd = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+      actualRemainingMonths = Math.max(
+        1,
+        (pd.getFullYear() - today.getFullYear()) * 12 + (pd.getMonth() - today.getMonth())
+      );
+    }
+
+    // Monthly-equivalent payment: for bi-weekly this is 26 × half-payment / 12
+    // Monthly-equivalent base payment (bi-weekly: 26 half-payments / 12 months)
+    const monthlyPaymentEquivalent = paymentType === 'biweekly'
+      ? Math.round(paymentAmount * 26 / 12)
+      : Math.round(paymentAmount);
+
+    // Monthly-equivalent extra payment — if extra is bi-weekly, $500/period × 26/12 ≠ $500/month
+    const isBiweeklyExtra = paymentType === 'biweekly' && extraPaymentFrequency === 'biweekly';
+    const monthlyExtraEquivalent = extraPaymentEnabled && extraPaymentAmount > 0
+      ? Math.round(isBiweeklyExtra ? extraPaymentAmount * 26 / 12 : extraPaymentAmount)
+      : 0;
+
+    setRefinanceData(prev => ({
+      ...prev,
+      remainingBalance: remainingBalance || Math.round(loanAmount),
+      currentRate: interestRate,
+      currentPayoffDate: payoffDateStr,
+      currentExtraPayment: monthlyExtraEquivalent,
+      _actualRemainingInterest: actualRemainingInterest,
+      _actualRemainingMonths: actualRemainingMonths,
+      _actualMonthlyPaymentEquivalent: monthlyPaymentEquivalent,
+    }));
+  // Only re-run when the modal opens, not on every value change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRefinanceAnalysis]);
+
   // Trigger email capture after calculation (conversion optimization)
   useEffect(() => {
     if (!hasCalculated && schedule.length > 0) {
@@ -432,15 +518,20 @@ const MortgageCalculator: React.FC = () => {
 
     loadMortgagesData();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates from other devices/tabs
     const unsubscribe = subscribeToMortgages(currentUser.uid, (updatedMortgages) => {
-      if (!isInitialLoadRef.current) {
-        const timeSinceLastChange = Date.now() - lastLocalChangeRef.current;
-        // Only accept Firestore updates if no recent local changes
-        if (timeSinceLastChange > FIRESTORE_SYNC.LOCAL_CHANGE_BUFFER_MS) {
-          setSavedMortgages(updatedMortgages);
-        }
-      }
+      if (isInitialLoadRef.current) return;
+
+      const timeSinceLastChange = Date.now() - lastLocalChangeRef.current;
+      if (timeSinceLastChange <= FIRESTORE_SYNC.LOCAL_CHANGE_BUFFER_MS) return;
+
+      // Only call setState when data actually changed — prevents blink/re-render on no-op snapshots
+      setSavedMortgages(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(updatedMortgages)) return prev;
+        return updatedMortgages;
+        // NOTE: pendingLocalSaveRef is intentionally NOT set here.
+        // This is a remote update, not a local user action — must not trigger a write-back.
+      });
     });
 
     unsubscribeRef.current = unsubscribe;
@@ -452,50 +543,37 @@ const MortgageCalculator: React.FC = () => {
     };
   }, [currentUser]);
 
-  // Sync to Local Storage for guests
+  // Sync to Local Storage for guests — always write, even empty, so deletes are persisted
   useEffect(() => {
     if (!currentUser && !isLoadingMortgages) {
-      if (savedMortgages.length > 0) {
-        localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(savedMortgages));
-      }
+      localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(savedMortgages));
     }
   }, [savedMortgages, currentUser, isLoadingMortgages]);
 
-  // Save mortgages to Firestore when they change (debounced)
+  // Save mortgages to Firestore — only fires when a user action set pendingLocalSaveRef.
+  // Subscription-driven state changes never set that flag, which breaks the write-back loop.
   useEffect(() => {
-    if (!currentUser || isLoadingMortgages || isInitialLoadRef.current) {
-      return;
-    }
+    if (!currentUser || isLoadingMortgages || isInitialLoadRef.current) return;
+    if (!pendingLocalSaveRef.current) return;
 
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
     const saveTimer = setTimeout(async () => {
+      if (!pendingLocalSaveRef.current) return; // re-check after debounce
       try {
-        setIsSavingMortgage(true);
-        setSaveError(null);
         await saveMortgages(currentUser.uid, savedMortgages);
+        pendingLocalSaveRef.current = false;
         logger.info('Mortgages saved successfully to Firestore');
       } catch (error) {
         const err = error as Error;
         logger.error('Error saving mortgages', error);
-        // Show the specific error message from the service
-        const errorMessage = err.message || ERROR_MESSAGES.SAVE_MORTGAGE_FAILED;
-        setSaveError(errorMessage);
-        showError(errorMessage);
-      } finally {
-        setIsSavingMortgage(false);
+        showError(err.message || ERROR_MESSAGES.SAVE_MORTGAGE_FAILED);
+        // pendingLocalSaveRef stays true so the next state change retries
       }
     }, DEBOUNCE_DELAYS.FIRESTORE_SAVE);
 
     saveTimerRef.current = saveTimer;
-
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [savedMortgages, currentUser, isLoadingMortgages]);
 
   // Save or update current mortgage
@@ -526,6 +604,7 @@ const MortgageCalculator: React.FC = () => {
     if (selectedMortgageId) {
       // Update existing mortgage
       lastLocalChangeRef.current = Date.now();
+      pendingLocalSaveRef.current = true;
       setSavedMortgages(prev => prev.map(m =>
         m.id === selectedMortgageId ? {
           ...m,
@@ -554,6 +633,7 @@ const MortgageCalculator: React.FC = () => {
           propertyTaxPeriod,
           homeInsurance,
           homeInsurancePeriod,
+          pmiAmount,
           hoaFees
         } : m
       ));
@@ -587,25 +667,20 @@ const MortgageCalculator: React.FC = () => {
         propertyTaxPeriod,
         homeInsurance,
         homeInsurancePeriod,
+        pmiAmount,
         hoaFees
       };
 
       lastLocalChangeRef.current = Date.now();
+      pendingLocalSaveRef.current = true;
       setSavedMortgages(prev => [...prev, newMortgage]);
       setSelectedMortgageId(newMortgage.id);
     }
 
     setNewMortgageName('');
     setShowSaveMortgageModal(false);
-
-    // Scroll to mortgage tracker after a short delay
-    setTimeout(() => {
-      const trackerElement = document.getElementById('mortgage-tracker');
-      if (trackerElement) {
-        trackerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 300);
-  }, [currentUser, newMortgageName, savedMortgages, selectedMortgageId, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency, propertyType, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, hoaFees]);
+    success('Mortgage saved — view it on your Dashboard');
+  }, [currentUser, newMortgageName, savedMortgages, selectedMortgageId, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency, propertyType, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, pmiAmount, hoaFees]);
 
   // Load a saved mortgage
   const handleLoadMortgage = useCallback((mortgage: SavedMortgage) => {
@@ -638,6 +713,7 @@ const MortgageCalculator: React.FC = () => {
     setPropertyTaxPeriod(mortgage.propertyTaxPeriod || 'year');
     setHomeInsurance(mortgage.homeInsurance || 0);
     setHomeInsurancePeriod(mortgage.homeInsurancePeriod || 'year');
+    setPmiAmount(mortgage.pmiAmount || 0);
     setHoaFees(mortgage.hoaFees || 0);
   }, [
     homeValueInput,
@@ -668,36 +744,53 @@ const MortgageCalculator: React.FC = () => {
     setHoaFees
   ]);
 
-  // Delete a mortgage
-  const handleDeleteMortgage = useCallback((mortgageId: string) => {
-    if (window.confirm('Are you sure you want to delete this mortgage?')) {
-      lastLocalChangeRef.current = Date.now();
-      setSavedMortgages(prev => prev.filter(m => m.id !== mortgageId));
-      if (selectedMortgageId === mortgageId) {
-        setSelectedMortgageId(null);
-      }
-    }
-  }, [selectedMortgageId, setSavedMortgages, setSelectedMortgageId]);
 
-  // Update mortgage name
-  const handleUpdateMortgageName = useCallback((mortgageId: string, newName: string) => {
-    if (!newName.trim()) {
-      warning(ERROR_MESSAGES.EMPTY_MORTGAGE_NAME);
-      return;
+  // Auto-load a specific mortgage from the ?load= URL param (e.g. from Dashboard card)
+  const hasAutoLoadedRef = useRef(false);
+  useEffect(() => {
+    const loadId = searchParams.get('load');
+    if (!loadId || isLoadingMortgages || hasAutoLoadedRef.current || savedMortgages.length === 0) return;
+    const mortgage = savedMortgages.find(m => m.id === loadId);
+    if (mortgage) {
+      handleLoadMortgage(mortgage);
+      hasAutoLoadedRef.current = true;
     }
+  }, [searchParams, savedMortgages, isLoadingMortgages, handleLoadMortgage]);
+
+  // Convert a loaded primary mortgage to investment — updates saved data AND live form state
+  const handleConvertToInvestment = useCallback((mortgageId: string, rentalSetup: RentalSetup) => {
     lastLocalChangeRef.current = Date.now();
-    setSavedMortgages(prev => prev.map(m =>
-      m.id === mortgageId ? { ...m, name: newName.trim(), updatedAt: new Date().toISOString() } : m
-    ));
-    setEditingMortgageName(null);
-    setEditingMortgageNameValue('');
-  }, [warning, setSavedMortgages, setEditingMortgageName, setEditingMortgageNameValue]);
+    pendingLocalSaveRef.current = true;
+    setSavedMortgages(prev => prev.map(m => m.id !== mortgageId ? m : {
+      ...m,
+      propertyType: 'investment' as const,
+      monthlyRent: rentalSetup.monthlyRent,
+      vacancyRate: rentalSetup.vacancyRate,
+      propertyManagementPercent: rentalSetup.managementFee,
+      maintenance: rentalSetup.maintenance,
+      utilities: rentalSetup.utilities,
+      propertyAppreciationRate: rentalSetup.growthRate,
+      updatedAt: new Date().toISOString(),
+    }));
+    // Reflect changes in the live calculator form immediately
+    setPropertyType('investment');
+    monthlyRentInput.setValue(rentalSetup.monthlyRent);
+    setVacancyRate(rentalSetup.vacancyRate);
+    setPropertyManagementPercent(rentalSetup.managementFee);
+    maintenanceInput.setValue(rentalSetup.maintenance);
+    utilitiesInput.setValue(rentalSetup.utilities);
+    setPropertyAppreciationRate(rentalSetup.growthRate);
+    setCurrentStep(2); // jump to "Rental Income" step
+    setConvertingMortgage(null);
+    success('Converted to investment property');
+  }, [monthlyRentInput, maintenanceInput, utilitiesInput, success]);
 
   // Update current mortgage data
   const handleUpdateCurrentMortgage = useCallback(() => {
     if (!selectedMortgageId || !currentUser) return;
 
     lastLocalChangeRef.current = Date.now();
+      pendingLocalSaveRef.current = true;
     setSavedMortgages(prev => prev.map(m =>
       m.id === selectedMortgageId ? {
         ...m,
@@ -745,7 +838,9 @@ const MortgageCalculator: React.FC = () => {
   const monthlyPropertyTax = propertyTaxPeriod === 'year' ? propertyTax / 12 : propertyTax;
   const monthlyInsurance = homeInsurancePeriod === 'year' ? homeInsurance / 12 : homeInsurance;
   const totalMonthlyCosts = monthlyPropertyTax + monthlyInsurance + pmiAmount + hoaFees;
-  const trueMonthlyPayment = paymentAmount + totalMonthlyCosts;
+  const truePaymentAmount = paymentType === 'biweekly'
+    ? paymentAmount + (totalMonthlyCosts * 12) / 26
+    : paymentAmount + totalMonthlyCosts;
 
   // Auto-calculate PMI if down payment < 20%
   useEffect(() => {
@@ -765,27 +860,90 @@ const MortgageCalculator: React.FC = () => {
   // Investment Property Calculations
   const effectiveMonthlyRent = monthlyRentInput.value * (1 - vacancyRate / 100);
   const propertyManagementFee = monthlyRentInput.value * (propertyManagementPercent / 100);
+
+  // Operating expenses: property-level costs (finance-independent — keeps NOI/Cap Rate clean)
+  // PMI is intentionally excluded here and treated as debt service below
   const totalOperatingExpenses = propertyManagementFee + maintenanceInput.value + utilitiesInput.value + (monthlyPropertyTax + monthlyInsurance + hoaFees);
-  const monthlyCashFlow = effectiveMonthlyRent - paymentAmount - totalOperatingExpenses;
+
+  // Monthly debt service: P&I converted to monthly equivalent + PMI
+  // For bi-weekly: 26 payments × per-period amount / 12 = true monthly outflow
+  const monthlyPandI = paymentType === 'biweekly' ? paymentAmount * 26 / 12 : paymentAmount;
+  const monthlyDebtService = monthlyPandI + pmiAmount;
+
+  const monthlyCashFlow = effectiveMonthlyRent - monthlyDebtService - totalOperatingExpenses;
   const annualCashFlow = monthlyCashFlow * 12;
 
   // Investment KPIs
   const cashOnCashReturn = downPaymentInput.value > 0 ? (annualCashFlow / downPaymentInput.value) * 100 : 0;
   const annualRent = monthlyRentInput.value * 12 * (1 - vacancyRate / 100);
   const annualOperatingExpenses = totalOperatingExpenses * 12;
+  // NOI excludes debt service and PMI — finance-independent metric used for Cap Rate
   const netOperatingIncome = annualRent - annualOperatingExpenses;
   const capRate = homeValueInput.value > 0 ? (netOperatingIncome / homeValueInput.value) * 100 : 0;
-  const breakEvenOccupancy = monthlyRentInput.value > 0 ? ((paymentAmount + totalOperatingExpenses) / monthlyRentInput.value) * 100 : 0;
+  const breakEvenOccupancy = monthlyRentInput.value > 0 ? ((monthlyDebtService + totalOperatingExpenses) / monthlyRentInput.value) * 100 : 0;
 
-  // Rental Income Projections (based on appreciation rate for rental income growth)
+  // Rental income projections
   const futureMonthlyRent5Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 5);
   const futureMonthlyRent10Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 10);
   const futureMonthlyRent15Year = monthlyRentInput.value * Math.pow(1 + propertyAppreciationRate / 100, 15);
-  const rentIncrease5Year = futureMonthlyRent5Year - monthlyRentInput.value;
-  const rentIncrease10Year = futureMonthlyRent10Year - monthlyRentInput.value;
-  const rentIncrease15Year = futureMonthlyRent15Year - monthlyRentInput.value;
-  // const totalReturn5Year = (annualCashFlow * 5) + (futureValue5Year - homeValueInput.value);
-  // const totalReturn10Year = (annualCashFlow * 10) + (futureValue10Year - homeValueInput.value);
+
+  // ── Advanced investment metrics ────────────────────────────────────────────
+  // GRM: how many years of gross rent to buy the property (lower = better deal)
+  const grm = monthlyRentInput.value > 0 ? homeValueInput.value / (monthlyRentInput.value * 12) : 0;
+
+  // DSCR: lenders want ≥ 1.25 — NOI vs full annual debt service (P&I + PMI)
+  const annualDebtService = monthlyDebtService * 12;
+  const dscr = annualDebtService > 0 ? netOperatingIncome / annualDebtService : 0;
+
+  // Operating Expense Ratio: what % of gross income goes to operating costs
+  const operatingExpenseRatio = monthlyRentInput.value > 0
+    ? (annualOperatingExpenses / (monthlyRentInput.value * 12)) * 100 : 0;
+
+  // Property value at 5 / 10 / 15 years
+  const futurePropertyValue5  = homeValueInput.value * Math.pow(1 + propertyAppreciationRate / 100, 5);
+  const futurePropertyValue10 = homeValueInput.value * Math.pow(1 + propertyAppreciationRate / 100, 10);
+  const futurePropertyValue15 = homeValueInput.value * Math.pow(1 + propertyAppreciationRate / 100, 15);
+
+  // Equity at 5 / 10 / 15 years (down payment + principal repaid by that point)
+  const paymentsPerYear = paymentType === 'biweekly' ? 26 : 12;
+  const getBalanceAfterYears = (yrs: number) => {
+    if (!schedule.length) return loanAmount;
+    const idx = Math.min(Math.round(yrs * paymentsPerYear) - 1, schedule.length - 1);
+    return Math.max(0, schedule[Math.max(0, idx)]?.balance ?? loanAmount);
+  };
+  const equity5  = downPaymentInput.value + loanAmount - getBalanceAfterYears(5);
+  const equity10 = downPaymentInput.value + loanAmount - getBalanceAfterYears(10);
+  const equity15 = downPaymentInput.value + loanAmount - getBalanceAfterYears(15);
+
+  // Cumulative cash flow (static — does not account for rent/expense growth)
+  const cumulativeCashFlow5  = annualCashFlow * 5;
+  const cumulativeCashFlow10 = annualCashFlow * 10;
+  const cumulativeCashFlow15 = annualCashFlow * 15;
+
+  // Total wealth = equity + unrealised appreciation gain + cumulative cash flow
+  const appreciationGain5  = futurePropertyValue5  - homeValueInput.value;
+  const appreciationGain10 = futurePropertyValue10 - homeValueInput.value;
+  const appreciationGain15 = futurePropertyValue15 - homeValueInput.value;
+  const totalWealth5  = equity5  + appreciationGain5  + cumulativeCashFlow5;
+  const totalWealth10 = equity10 + appreciationGain10 + cumulativeCashFlow10;
+  const totalWealth15 = equity15 + appreciationGain15 + cumulativeCashFlow15;
+
+  // Annualised ROI vs initial cash invested (down payment)
+  const safeRoot = (val: number, exp: number) => val > 0 ? (Math.pow(val, exp) - 1) * 100 : ((val / (downPaymentInput.value || 1)) * 100) / (1 / exp);
+  const annualisedRoi5  = downPaymentInput.value > 0 ? safeRoot(totalWealth5  / downPaymentInput.value, 1/5)  : 0;
+  const annualisedRoi10 = downPaymentInput.value > 0 ? safeRoot(totalWealth10 / downPaymentInput.value, 1/10) : 0;
+  const annualisedRoi15 = downPaymentInput.value > 0 ? safeRoot(totalWealth15 / downPaymentInput.value, 1/15) : 0;
+
+  // Deal Score 0–100 and letter grade
+  const dealScore = (() => {
+    let s = 0;
+    s += capRate >= 8 ? 25 : capRate >= 5 ? 15 : capRate >= 3 ? 5 : 0;
+    s += cashOnCashReturn >= 12 ? 25 : cashOnCashReturn >= 8 ? 15 : cashOnCashReturn >= 4 ? 5 : 0;
+    s += dscr >= 1.5 ? 25 : dscr >= 1.25 ? 15 : dscr >= 1.0 ? 5 : 0;
+    s += breakEvenOccupancy <= 70 ? 25 : breakEvenOccupancy <= 80 ? 15 : breakEvenOccupancy <= 90 ? 5 : 0;
+    return s;
+  })();
+  const dealGrade = dealScore >= 80 ? 'A' : dealScore >= 60 ? 'B' : dealScore >= 40 ? 'C' : dealScore >= 20 ? 'D' : 'F';
 
   // Calculate scenario comparisons - Using helper functions to eliminate duplication
   // Memoized with useCallback to prevent unnecessary recalculations
@@ -841,50 +999,61 @@ const MortgageCalculator: React.FC = () => {
     paymentType: paymentType
   }), [calculateScenario, homeValueInput.value, downPaymentInput.value, interestRate, tenure, paymentType]);
 
-  // Calculate refinance analysis - Using helper functions to eliminate duplication
-  // Memoized with useCallback to prevent unnecessary recalculations
+  // Calculate refinance analysis
   const calculateRefinance = useCallback(() => {
-    const monthlyRate = refinanceData.currentRate / 100 / 12;
+    // ── Current loan ─────────────────────────────────────────────────────────
+    // Use actual schedule data when available (set on modal open) so bi-weekly
+    // payments and extra payments are accurately reflected.
+    // Fall back to manual derivation if the user edited the fields after opening.
 
-    // Calculate remaining months from payoff date
-    let actualRemainingMonths = 360; // Default
-    let currentPayment = paymentAmount; // Default to calculated
+    let actualRemainingMonths: number;
+    let currentPayment: number;
+    let currentTotalInterest: number;
 
-    if (refinanceData.currentPayoffDate) {
-      const dateParts = refinanceData.currentPayoffDate.split('-');
-      const year = parseInt(dateParts[0]);
-      const month = parseInt(dateParts[1]);
-      const day = dateParts.length > 2 ? parseInt(dateParts[2]) : 1;
-      const payoffDate = new Date(year, month - 1, day);
-      const today = new Date();
-      const monthsDiff = (payoffDate.getFullYear() - today.getFullYear()) * 12 +
-        (payoffDate.getMonth() - today.getMonth());
-      actualRemainingMonths = Math.max(1, monthsDiff);
+    const hasStoredData = refinanceData._actualRemainingMonths > 0;
 
-      // Calculate the actual monthly payment using helper
-      if (actualRemainingMonths > 0 && refinanceData.remainingBalance > 0) {
-        currentPayment = calculateMonthlyPayment(
-          refinanceData.remainingBalance,
-          refinanceData.currentRate,
-          actualRemainingMonths / 12
+    if (hasStoredData) {
+      // Primary path: use values derived directly from the amortisation schedule
+      actualRemainingMonths = refinanceData._actualRemainingMonths;
+      currentPayment = refinanceData._actualMonthlyPaymentEquivalent ||
+        calculateMonthlyPayment(refinanceData.remainingBalance, refinanceData.currentRate, actualRemainingMonths / 12);
+      currentTotalInterest = refinanceData._actualRemainingInterest;
+    } else {
+      // Fallback: user opened modal without a loaded mortgage — derive from inputs
+      actualRemainingMonths = 360;
+      if (refinanceData.currentPayoffDate) {
+        const dp = refinanceData.currentPayoffDate.split('-');
+        const today = new Date();
+        const pd = new Date(parseInt(dp[0]), parseInt(dp[1]) - 1, 1);
+        actualRemainingMonths = Math.max(
+          1,
+          (pd.getFullYear() - today.getFullYear()) * 12 + (pd.getMonth() - today.getMonth())
         );
+      }
+      currentPayment = calculateMonthlyPayment(
+        refinanceData.remainingBalance,
+        refinanceData.currentRate,
+        actualRemainingMonths / 12
+      );
+      const monthlyRate = refinanceData.currentRate / 100 / 12;
+      const currentResult = simulateMonthlyAmortization(
+        refinanceData.remainingBalance,
+        currentPayment,
+        monthlyRate,
+        refinanceData.currentExtraPayment,
+        actualRemainingMonths + 120
+      );
+      currentTotalInterest = currentResult.totalInterest;
+      if (refinanceData.currentExtraPayment > 0) {
+        actualRemainingMonths = currentResult.monthsPaid;
       }
     }
 
-    // Simulate current loan amortization using helper
-    const maxMonths = actualRemainingMonths + 120; // Safety limit
-    const currentResult = simulateMonthlyAmortization(
-      refinanceData.remainingBalance,
-      currentPayment,
-      monthlyRate,
-      refinanceData.currentExtraPayment,
-      maxMonths
-    );
+    const currentTotalPayments = refinanceData.remainingBalance + currentTotalInterest;
+    const finalRemainingMonths = actualRemainingMonths;
 
-    const currentTotalPayments = (currentPayment * currentResult.monthsPaid) + currentResult.totalExtraPaid;
-    const finalRemainingMonths = refinanceData.currentExtraPayment > 0 ? currentResult.monthsPaid : actualRemainingMonths;
-
-    // New refinanced loan - Calculate payment using helper
+    // ── New refinanced loan ───────────────────────────────────────────────────
+    const maxMonths = Math.max(finalRemainingMonths, refinanceData.newTerm * 12) + 120;
     const newMonthlyRate = refinanceData.newRate / 100 / 12;
     const newPayment = calculateMonthlyPayment(
       refinanceData.remainingBalance,
@@ -892,7 +1061,6 @@ const MortgageCalculator: React.FC = () => {
       refinanceData.newTerm
     );
 
-    // Simulate new loan with extra payments using helper
     const newResult = simulateMonthlyAmortization(
       refinanceData.remainingBalance,
       newPayment,
@@ -907,7 +1075,7 @@ const MortgageCalculator: React.FC = () => {
     // Savings calculations
     const monthlySavings = currentPayment - newPayment;
     const totalSavings = currentTotalPayments - newTotalPayments;
-    const interestSavings = currentResult.totalInterest - newResult.totalInterest - refinanceData.closingCosts;
+    const interestSavings = currentTotalInterest - newResult.totalInterest - refinanceData.closingCosts;
     const breakEvenMonths = monthlySavings > 0 ? refinanceData.closingCosts / monthlySavings : Infinity;
     const breakEvenYears = breakEvenMonths / 12;
 
@@ -924,7 +1092,7 @@ const MortgageCalculator: React.FC = () => {
       currentPayment,
       currentMonthlyTotal,
       currentTotalPayments,
-      currentTotalInterest: currentResult.totalInterest,
+      currentTotalInterest: currentTotalInterest,
       remainingMonths: finalRemainingMonths,
       newPayment,
       newMonthlyTotal,
@@ -1428,20 +1596,9 @@ const MortgageCalculator: React.FC = () => {
       scenario,
       { homeValueInput, downPaymentInput, interestRateInput, tenureInput, extraPaymentAmountInput },
       { setPaymentType, setStartDate, setExtraPaymentEnabled },
-      () => setShowScenarioComparison(false)
+      () => onViewChange?.('calculator')
     );
-  }, [
-    applyScenarioToCalculator,
-    homeValueInput,
-    downPaymentInput,
-    interestRateInput,
-    tenureInput,
-    extraPaymentAmountInput,
-    setPaymentType,
-    setStartDate,
-    setExtraPaymentEnabled,
-    setShowScenarioComparison
-  ]);
+  }, [applyScenarioToCalculator, homeValueInput, downPaymentInput, interestRateInput, tenureInput, extraPaymentAmountInput, setPaymentType, setStartDate, setExtraPaymentEnabled, onViewChange]);
 
   const handleApplyRefinance = useCallback(() => {
     applyRefinanceToCalculator(
@@ -1451,22 +1608,9 @@ const MortgageCalculator: React.FC = () => {
       refinanceData.newExtraPayment,
       { homeValueInput, downPaymentInput, interestRateInput, tenureInput, extraPaymentAmountInput },
       { setStartDate, setExtraPaymentEnabled, setExtraPaymentFrequency, setExtraStartDate: setExtraPaymentStartDate },
-      () => setShowRefinanceAnalysis(false)
+      () => onViewChange?.('calculator')
     );
-  }, [
-    applyRefinanceToCalculator,
-    refinanceData,
-    homeValueInput,
-    downPaymentInput,
-    interestRateInput,
-    tenureInput,
-    extraPaymentAmountInput,
-    setStartDate,
-    setExtraPaymentEnabled,
-    setExtraPaymentFrequency,
-    setExtraPaymentStartDate,
-    setShowRefinanceAnalysis
-  ]);
+  }, [applyRefinanceToCalculator, refinanceData, homeValueInput, downPaymentInput, interestRateInput, tenureInput, extraPaymentAmountInput, setStartDate, setExtraPaymentEnabled, setExtraPaymentFrequency, setExtraPaymentStartDate, onViewChange]);
 
   // Comparison bar chart data - showing REMAINING interest from today forward
   // Memoized to avoid recalculation on every render
@@ -1508,7 +1652,7 @@ const MortgageCalculator: React.FC = () => {
     <div
       id="mortgage-calculator-section"
       key={`currency-${currencyRenderKey}`}
-      className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative overflow-hidden scroll-mt-24"
+      className="min-h-screen bg-gray-50 p-1 sm:p-2 md:p-4 relative scroll-mt-24"
     >
       {/* Login Modal */}
       <LoginModal
@@ -1532,6 +1676,13 @@ const MortgageCalculator: React.FC = () => {
         }}
       />
 
+      <ConvertToInvestmentModal
+        isOpen={convertingMortgage !== null}
+        mortgage={convertingMortgage}
+        onClose={() => setConvertingMortgage(null)}
+        onConvert={handleConvertToInvestment}
+      />
+
       <SaveMortgageModal
         isOpen={showSaveMortgageModal}
         isUpdate={Boolean(selectedMortgageId)}
@@ -1546,83 +1697,64 @@ const MortgageCalculator: React.FC = () => {
         }}
       />
 
-      {/* Animated Background Blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-4000"></div>
-      </div>
+      <div className="relative z-10">
 
-      <div className="max-w-7xl mx-auto relative z-10">
-        <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-transparent via-slate-400 to-transparent mx-auto mb-2 sm:mb-3 animate-slideIn"></div>
-
-        {/* Property Type Toggle and Heading */}
-        <MortgageHeader
-          isAuthenticated={Boolean(currentUser)}
-          onLoginClick={() => setShowLoginModal(true)}
-          propertyType={propertyType}
-          onPropertyTypeChange={setPropertyType}
-          selectedCurrency={selectedCurrency}
-          onCurrencyChange={setSelectedCurrency}
-        />
-
-        {currentUser ? (
-          mortgagePortfolioSummary && (
-            <div className="mt-4 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                  Portfolio Summary
-                </div>
-                <div className="text-xs text-slate-400">
-                  {mortgagePortfolioSummary.count} saved {mortgagePortfolioSummary.count === 1 ? 'mortgage' : 'mortgages'}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MetricCard
-                  label="Total monthly outflow"
-                  value={formatCurrency(mortgagePortfolioSummary.totalMonthlyOutflow)}
-                  icon={<Wallet className="w-4 h-4" />}
-                />
-                <MetricCard
-                  label="Outstanding balance"
-                  value={formatCurrency(mortgagePortfolioSummary.totalPrincipalRemaining)}
-                  icon={<HomeIcon className="w-4 h-4" />}
-                />
-                <MetricCard
-                  label="Principal paid"
-                  value={formatCurrency(mortgagePortfolioSummary.totalPrincipalPaid)}
-                  icon={<TrendingUp className="w-4 h-4" />}
-                />
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="mt-4 mb-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-6 text-center">
-            <h3 className="text-sm font-semibold text-slate-800">Sign in to see your portfolio summary</h3>
-            <p className="text-xs text-slate-500 mt-2">
-              Track all saved mortgages, monthly outflow, and payoff progress in one place.
-            </p>
-            <button
-              onClick={() => setShowLoginModal(true)}
-              className="mt-4 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-            >
-              Sign in
-            </button>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-3">
-          {/* Loan Details */}
-          {/* Loan Details - Takes 2 columns (40% width) on desktop, full width on mobile */}
-          <div className="lg:col-span-2">
+        {/* ── Calculator view: form + results side by side ───────────────────── */}
+        {activeView === 'calculator' && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
+          <div className="lg:col-span-2 lg:sticky lg:top-28">
             <div className={CARD_STYLE} style={{ ...CARD_SHADOW }}>
               <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-400/20 to-transparent rounded-bl-full"></div>
               <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-indigo-400/20 to-transparent rounded-tr-full"></div>
 
               <div className="relative p-3 space-y-3">
+                {/* Primary / Investment toggle */}
+                <div className="flex rounded-lg bg-slate-100 p-1 gap-1">
+                  <button
+                    onClick={() => setPropertyType('primary')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
+                      propertyType === 'primary'
+                        ? 'bg-white shadow text-blue-700'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    🏠 Primary Home
+                  </button>
+                  <button
+                    onClick={() => setPropertyType('investment')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
+                      propertyType === 'investment'
+                        ? 'bg-white shadow text-emerald-700'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    🏢 Investment
+                  </button>
+                </div>
+
+                {/* Convert to rental — only when a primary mortgage is loaded */}
+                {selectedMortgageId && propertyType === 'primary' && (() => {
+                  const m = savedMortgages.find(s => s.id === selectedMortgageId);
+                  return m ? (
+                    <button
+                      onClick={() => setConvertingMortgage(m)}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Convert this mortgage to a rental investment
+                    </button>
+                  ) : null;
+                })()}
+
+                {/* Currency — lives here, not in a separate header */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs text-slate-400 font-medium">Currency</span>
+                  <CurrencySelector selectedCurrency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
+                </div>
+
                 <Stepper steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
-                <div className="min-h-[400px]">
+                <div>
                   {currentStep === 0 && (
                     <div id="mortgage-refinance-section" className="animate-fadeIn scroll-mt-24">
                       <LoanInputs
@@ -1650,10 +1782,6 @@ const MortgageCalculator: React.FC = () => {
                         showCurrentRates={showCurrentRates}
                         setShowCurrentRates={setShowCurrentRates}
                         selectedCurrency={selectedCurrency}
-                        showScenarioComparison={showScenarioComparison}
-                        setShowScenarioComparison={setShowScenarioComparison}
-                        showRefinanceAnalysis={showRefinanceAnalysis}
-                        setShowRefinanceAnalysis={setShowRefinanceAnalysis}
                       />
                     </div>
                   )}
@@ -1681,7 +1809,30 @@ const MortgageCalculator: React.FC = () => {
                     </div>
                   )}
 
-                  {currentStep === 2 && (
+                  {currentStep === 2 && propertyType === 'investment' && (
+                    <div className="animate-fadeIn">
+                      <InvestmentDetails
+                        monthlyRentInput={monthlyRentInput}
+                        vacancyRate={vacancyRate}
+                        setVacancyRate={setVacancyRate}
+                        propertyManagementPercent={propertyManagementPercent}
+                        setPropertyManagementPercent={setPropertyManagementPercent}
+                        maintenanceInput={maintenanceInput}
+                        utilitiesInput={utilitiesInput}
+                        propertyAppreciationRate={propertyAppreciationRate}
+                        setPropertyAppreciationRate={setPropertyAppreciationRate}
+                        effectiveMonthlyRent={effectiveMonthlyRent}
+                        totalOperatingExpenses={totalOperatingExpenses}
+                        monthlyCashFlow={monthlyCashFlow}
+                        mortgagePayment={monthlyDebtService}
+                        futureMonthlyRent5Year={futureMonthlyRent5Year}
+                        futureMonthlyRent10Year={futureMonthlyRent10Year}
+                        futureMonthlyRent15Year={futureMonthlyRent15Year}
+                      />
+                    </div>
+                  )}
+
+                  {((currentStep === 2 && propertyType === 'primary') || (currentStep === 3 && propertyType === 'investment')) && (
                     <div className="animate-fadeIn">
                       <ExtraPayments
                         extraPaymentEnabled={extraPaymentEnabled}
@@ -1760,57 +1911,58 @@ const MortgageCalculator: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Side - Payment Summary, Cost Breakdown, and Comparison - Compact */}
-          <div className="lg:col-span-3 space-y-2">
-            {/* Payment Summary OR Investment Analysis (Full Width for Investment) - Compact */}
-            <div className={propertyType === 'investment' ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-2'}>
-              {propertyType === 'primary' ? (
-                <PrimarySummaryCards
-                  loanAmount={loanAmount}
-                  paymentAmount={paymentAmount}
-                  totalMonthlyCosts={totalMonthlyCosts}
-                  trueMonthlyPayment={trueMonthlyPayment}
-                  totalPaid={totalPaid}
-                  yearsToPayoff={yearsToPayoff}
-                  endDate={endDate}
-                  totalInterest={totalInterest}
-                />
-              ) : (
-                <InvestmentSummaryCard
-                  monthlyRentInput={monthlyRentInput}
-                  vacancyRate={vacancyRate}
-                  setVacancyRate={setVacancyRate}
-                  propertyManagementPercent={propertyManagementPercent}
-                  setPropertyManagementPercent={setPropertyManagementPercent}
-                  maintenanceInput={maintenanceInput}
-                  utilitiesInput={utilitiesInput}
-                  propertyAppreciationRate={propertyAppreciationRate}
-                  setPropertyAppreciationRate={setPropertyAppreciationRate}
-                  futureMonthlyRent5Year={futureMonthlyRent5Year}
-                  futureMonthlyRent10Year={futureMonthlyRent10Year}
-                  futureMonthlyRent15Year={futureMonthlyRent15Year}
-                  rentIncrease5Year={rentIncrease5Year}
-                  rentIncrease10Year={rentIncrease10Year}
-                  rentIncrease15Year={rentIncrease15Year}
-                  paymentAmount={paymentAmount}
-                  paymentType={paymentType}
-                  totalMonthlyCosts={totalMonthlyCosts}
-                  trueMonthlyPayment={trueMonthlyPayment}
+          {/* Right Side - Results */}
+          <div className="lg:col-span-3 flex flex-col gap-3">
+            <LoanSummary
+              loanAmount={loanAmount}
+              paymentAmount={paymentAmount}
+              totalMonthlyCosts={totalMonthlyCosts}
+              truePaymentAmount={truePaymentAmount}
+              totalPaid={totalPaid}
+              yearsToPayoff={yearsToPayoff}
+              endDate={endDate}
+              totalInterest={totalInterest}
+              paymentType={paymentType}
+            />
+            {propertyType === 'investment' && (
+              <InvestmentOverlay
                   monthlyCashFlow={monthlyCashFlow}
                   annualCashFlow={annualCashFlow}
                   cashOnCashReturn={cashOnCashReturn}
                   capRate={capRate}
                   breakEvenOccupancy={breakEvenOccupancy}
-                  loanAmount={loanAmount}
-                  totalPaid={totalPaid}
-                  totalInterest={totalInterest}
+                  effectiveMonthlyRent={effectiveMonthlyRent}
+                  totalOperatingExpenses={totalOperatingExpenses}
+                  grossMonthlyRent={monthlyRentInput.value}
+                  vacancyLoss={monthlyRentInput.value - effectiveMonthlyRent}
+                  mortgagePayment={monthlyDebtService}
+                  pmiAmount={pmiAmount}
+                  netOperatingIncome={netOperatingIncome}
+                  grm={grm}
+                  dscr={dscr}
+                  operatingExpenseRatio={operatingExpenseRatio}
+                  dealScore={dealScore}
+                  dealGrade={dealGrade}
+                  propertyValue={homeValueInput.value}
+                  futurePropertyValue5={futurePropertyValue5}
+                  futurePropertyValue10={futurePropertyValue10}
+                  futurePropertyValue15={futurePropertyValue15}
+                  equity5={equity5}
+                  equity10={equity10}
+                  equity15={equity15}
+                  cumulativeCashFlow5={cumulativeCashFlow5}
+                  cumulativeCashFlow10={cumulativeCashFlow10}
+                  cumulativeCashFlow15={cumulativeCashFlow15}
+                  totalWealth5={totalWealth5}
+                  totalWealth10={totalWealth10}
+                  totalWealth15={totalWealth15}
+                  annualisedRoi5={annualisedRoi5}
+                  annualisedRoi10={annualisedRoi10}
+                  annualisedRoi15={annualisedRoi15}
+                  className=""
                 />
-              )}
-            </div>
-
-            {/* Comparison Section */}
-            <section id="mortgage-compare-section" className="scroll-mt-24">
-              <PaymentPlanComparison
+            )}
+            <PaymentPlanComparison
                 paymentPlanViewMode={paymentPlanViewMode}
                 onPaymentPlanViewModeChange={setPaymentPlanViewMode}
                 onReset={handleResetComparisonDefaults}
@@ -1825,51 +1977,63 @@ const MortgageCalculator: React.FC = () => {
                 graphRemainingInterestComparison={graphRemainingInterestComparison}
                 comparisonBarData={comparisonBarData}
                 chartRenderKey={chartRenderKey}
+                isFullWidth={propertyType === 'investment'}
               />
-            </section>
-
-            {propertyType === 'investment' && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-800">Investment Insights</h3>
-                    <p className="text-xs text-slate-500">Rental performance at a glance</p>
-                  </div>
-                  <span className="text-xs text-emerald-600 font-semibold">Investment mode</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <MetricCard
-                    label="Effective rent"
-                    value={formatCurrency(effectiveMonthlyRent)}
-                  />
-                  <MetricCard
-                    label="Operating expenses"
-                    value={formatCurrency(totalOperatingExpenses)}
-                  />
-                  <MetricCard
-                    label="Monthly cash flow"
-                    value={formatCurrency(monthlyCashFlow)}
-                  />
-                  <MetricCard
-                    label="Annual cash flow"
-                    value={formatCurrency(annualCashFlow)}
-                  />
-                  <MetricCard
-                    label="Cap rate"
-                    value={`${capRate.toFixed(1)}%`}
-                  />
-                  <MetricCard
-                    label="Break-even occupancy"
-                    value={`${breakEvenOccupancy.toFixed(1)}%`}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Amortization sections inside right column when additional costs are shown */}
-
           </div>
-        </div >
+        </div>
+        )} {/* end activeView === 'calculator' */}
+
+        {/* ── Compare Loans: full-width inline panel ─────────────────────────── */}
+        {activeView === 'compare' && (
+          <ScenarioComparisonModal
+            isOpen={true}
+            isInline={true}
+            onClose={() => onViewChange?.('calculator')}
+            onApplyScenario={handleApplyScenario}
+            homeValue={homeValueInput.value}
+            downPayment={downPaymentInput.value}
+            interestRate={interestRate}
+            tenure={tenure}
+            paymentType={paymentType}
+            loanAmount={loanAmount}
+            scenarioB={scenarioB}
+            scenarioC={scenarioC}
+            setScenarioB={setScenarioB}
+            setScenarioC={setScenarioC}
+            editingScenarioBPercent={editingScenarioBPercent}
+            setEditingScenarioBPercent={setEditingScenarioBPercent}
+            rawScenarioBPercent={rawScenarioBPercent}
+            setRawScenarioBPercent={setRawScenarioBPercent}
+            editingScenarioCPercent={editingScenarioCPercent}
+            setEditingScenarioCPercent={setEditingScenarioCPercent}
+            rawScenarioCPercent={rawScenarioCPercent}
+            setRawScenarioCPercent={setRawScenarioCPercent}
+            currentScenarioBase={currentScenarioBase}
+            scenarioBCalc={scenarioBCalc}
+            scenarioCCalc={scenarioCCalc}
+          />
+        )}
+
+        {/* ── Refinance: full-width inline panel ─────────────────────────────── */}
+        {activeView === 'refinance' && (
+          <RefinanceAnalysisModal
+            isOpen={true}
+            isInline={true}
+            onClose={() => onViewChange?.('calculator')}
+            refinanceData={refinanceData}
+            setRefinanceData={setRefinanceData}
+            editingCurrentRate={editingCurrentRate}
+            setEditingCurrentRate={setEditingCurrentRate}
+            rawCurrentRate={rawCurrentRate}
+            setRawCurrentRate={setRawCurrentRate}
+            editingNewRate={editingNewRate}
+            setEditingNewRate={setEditingNewRate}
+            rawNewRate={rawNewRate}
+            setRawNewRate={setRawNewRate}
+            refinanceCalc={refinanceCalc}
+            onApplyRefinance={handleApplyRefinance}
+          />
+        )}
 
         {/* Amortization sections at bottom */}
         <>
@@ -1886,50 +2050,31 @@ const MortgageCalculator: React.FC = () => {
             selectedCurrency={selectedCurrency}
           />
 
-          <section id="mortgage-tracker-section" className="scroll-mt-24">
-            {currentUser ? (
-              savedMortgages.length > 0 ? (
-                <MortgageTracker
-                  savedMortgages={savedMortgages}
-                  selectedMortgageId={selectedMortgageId}
-                  schedule={schedule}
-                  totalInterest={totalInterest}
-                  endDate={endDate}
-                  saveError={saveError}
-                  isSavingMortgage={isSavingMortgage}
-                  editingMortgageName={editingMortgageName}
-                  editingMortgageNameValue={editingMortgageNameValue}
-                  setEditingMortgageName={setEditingMortgageName}
-                  setEditingMortgageNameValue={setEditingMortgageNameValue}
-                  onLoadMortgage={handleLoadMortgage}
-                  onDeleteMortgage={handleDeleteMortgage}
-                  onUpdateMortgageName={handleUpdateMortgageName}
-                />
-              ) : (
-                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center">
-                  <h3 className="text-lg font-semibold text-slate-800">No saved mortgages yet</h3>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Save a mortgage from the calculator to start tracking payoff progress and milestones.
-                  </p>
-                </div>
-              )
-            ) : (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center">
-                <h3 className="text-lg font-semibold text-slate-800">Track mortgages across sessions</h3>
-                <p className="text-sm text-slate-500 mt-2">
-                  Sign in to save mortgages, track payoff progress, and compare scenarios over time.
-                </p>
-                <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-                >
-                  Sign in to enable tracker
-                </button>
-              </div>
-            )}
-          </section>
+          {/* Compact portfolio bar — below amortization, not above the calculator */}
+          {currentUser && mortgagePortfolioSummary && (
+            <div className="flex flex-wrap items-center gap-3 py-3 px-4 bg-white rounded-xl border border-slate-200 text-sm mt-4">
+              <span className="text-slate-500 font-medium">
+                {mortgagePortfolioSummary.count} saved {mortgagePortfolioSummary.count === 1 ? 'mortgage' : 'mortgages'}
+              </span>
+              <span className="w-px h-4 bg-slate-200 hidden sm:block" />
+              <span className="text-slate-700">
+                <span className="text-slate-400 text-xs mr-1">outflow</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(mortgagePortfolioSummary.totalMonthlyOutflow)}/mo</span>
+              </span>
+              <span className="w-px h-4 bg-slate-200 hidden sm:block" />
+              <span className="text-slate-700">
+                <span className="text-slate-400 text-xs mr-1">outstanding</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(mortgagePortfolioSummary.totalPrincipalRemaining)}</span>
+              </span>
+              <span className="w-px h-4 bg-slate-200 hidden sm:block" />
+              <span className="text-emerald-700">
+                <span className="text-slate-400 text-xs mr-1">equity paid</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(mortgagePortfolioSummary.totalPrincipalPaid)}</span>
+              </span>
+            </div>
+          )}
 
-          {/* Export & Share Actions Section - Moved here for visibility */}
+          {/* Export & Share Actions Section */}
           <ExportShareSection
             onExportExcel={handleExportToExcel}
             onExportPDF={handleExportToPDF}
@@ -1938,83 +2083,25 @@ const MortgageCalculator: React.FC = () => {
             propertyType={propertyType}
             showScenarioComparison={showScenarioComparison}
             showRefinanceAnalysis={showRefinanceAnalysis}
+            calculationData={{
+              loanAmount,
+              totalInterest,
+              monthlyPayment: paymentAmount,
+              savingsAmount: interestSaved,
+              savingsYears: timeSaved,
+            }}
           />
         </>
 
-        {/* Loan Scenario Comparison Modal - Rendered at body level */}
-        <ScenarioComparisonModal
-          isOpen={showScenarioComparison}
-          onClose={() => setShowScenarioComparison(false)}
-          onApplyScenario={handleApplyScenario}
-          homeValue={homeValueInput.value}
-          downPayment={downPaymentInput.value}
-          interestRate={interestRate}
-          tenure={tenure}
-          paymentType={paymentType}
-          loanAmount={loanAmount}
-          scenarioB={scenarioB}
-          scenarioC={scenarioC}
-          setScenarioB={setScenarioB}
-          setScenarioC={setScenarioC}
-          editingScenarioBPercent={editingScenarioBPercent}
-          setEditingScenarioBPercent={setEditingScenarioBPercent}
-          rawScenarioBPercent={rawScenarioBPercent}
-          setRawScenarioBPercent={setRawScenarioBPercent}
-          editingScenarioCPercent={editingScenarioCPercent}
-          setEditingScenarioCPercent={setEditingScenarioCPercent}
-          rawScenarioCPercent={rawScenarioCPercent}
-          setRawScenarioCPercent={setRawScenarioCPercent}
-          currentScenarioBase={currentScenarioBase}
-          scenarioBCalc={scenarioBCalc}
-          scenarioCCalc={scenarioCCalc}
-        />
 
-        {/* Refinance Analysis Modal - Rendered at body level */}
-        <RefinanceAnalysisModal
-          isOpen={showRefinanceAnalysis}
-          onClose={() => setShowRefinanceAnalysis(false)}
-          refinanceData={refinanceData}
-          setRefinanceData={setRefinanceData}
-          editingCurrentRate={editingCurrentRate}
-          setEditingCurrentRate={setEditingCurrentRate}
-          rawCurrentRate={rawCurrentRate}
-          setRawCurrentRate={setRawCurrentRate}
-          editingNewRate={editingNewRate}
-          setEditingNewRate={setEditingNewRate}
-          rawNewRate={rawNewRate}
-          setRawNewRate={setRawNewRate}
-          refinanceCalc={refinanceCalc}
-          onApplyRefinance={handleApplyRefinance}
-        />
-
-        <MortgageEducationalSection />
-
-        {/* Viral Share & Email Capture Section */}
-        {
-          hasCalculated && (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-              <ViralShareResults
-                calculationData={{
-                  savingsAmount: interestSaved,
-                  savingsYears: timeSaved,
-                  paymentType: paymentType,
-                  loanAmount,
-                  totalInterest,
-                  monthlyPayment: paymentAmount
-                }}
-              />
-            </div>
-          )
-        }
-
-        
 
         {/* SEO Content Section - Educational content and FAQs for better search rankings */}
         <SEOContent />
 
         <StickySummary
-          monthlyPayment={paymentAmount}
+          paymentAmount={paymentAmount}
           currency={selectedCurrency}
+          paymentType={paymentType}
           propertyType={propertyType}
           cashFlow={monthlyCashFlow}
           onExpand={() => {

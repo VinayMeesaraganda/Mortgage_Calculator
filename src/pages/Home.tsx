@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import {
   Calculator,
   TrendingUp,
@@ -18,8 +18,11 @@ import Button from '../components/ui/Button';
 import SectionHeader from '../components/ui/SectionHeader';
 
 const Home: React.FC = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Logged-in users go straight to the dashboard
+  if (currentUser) return <Navigate to="/dashboard" replace />;
 
   const tools = [
     {
@@ -84,7 +87,7 @@ const Home: React.FC = () => {
 
   return (
     <PageShell
-      title={`Welcome${currentUser ? `, ${userProfile?.username || currentUser.displayName || 'back'}` : ''}`}
+      title="Welcome"
       subtitle="A modern finance suite to calculate, track, and optimize every major money decision."
     >
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />

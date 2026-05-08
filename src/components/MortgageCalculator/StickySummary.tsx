@@ -1,32 +1,36 @@
 import React from 'react';
 import { formatCurrency } from '../../utils/formatting';
-import { Currency } from '../../types/mortgage';
+import type { Currency, PaymentType } from '../../types/mortgage';
 import { ChevronUp } from 'lucide-react';
 
 interface StickySummaryProps {
-    monthlyPayment: number;
+    paymentAmount: number;
     currency: Currency;
+    paymentType: PaymentType;
     propertyType: 'primary' | 'investment';
     cashFlow?: number;
     onExpand?: () => void;
 }
 
 export const StickySummary: React.FC<StickySummaryProps> = ({
-    monthlyPayment,
+    paymentAmount,
     currency,
+    paymentType,
     propertyType,
     cashFlow,
     onExpand
 }) => {
+    const paymentLabel = paymentType === 'biweekly' ? 'Bi-weekly Payment' : 'Monthly Payment';
+
     return (
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] p-4 lg:hidden z-50 transition-transform duration-300">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex flex-col">
                     <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">
-                        Monthly Payment
+                        {paymentLabel}
                     </span>
                     <span className="text-xl font-bold text-slate-800">
-                        {formatCurrency(monthlyPayment, currency)}
+                        {formatCurrency(paymentAmount, currency)}
                     </span>
                 </div>
 

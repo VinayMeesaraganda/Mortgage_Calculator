@@ -5,7 +5,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { ToastProvider } from './src/components/Toast';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import Home from './src/pages/Home';
-import LandingPage from './src/pages/LandingPage';
+import Dashboard from './src/pages/Dashboard';
 import MortgageHub from './src/pages/MortgageHub';
 import StockInvestments from './src/pages/StockInvestments';
 import MutualFunds from './src/pages/MutualFunds';
@@ -29,8 +29,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <BrowserRouter>
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/home" element={<Home />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/home" element={<Navigate to="/" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/mortgage" element={<MortgageHub />} />
               <Route path="/mortgage-calculator" element={<Navigate to="/mortgage" replace />} />
               <Route path="/mutual-funds" element={<MutualFunds />} />

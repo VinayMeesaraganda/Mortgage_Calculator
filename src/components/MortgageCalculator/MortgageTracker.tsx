@@ -48,240 +48,217 @@ const MortgageTracker: React.FC<MortgageTrackerProps> = ({
           Mortgage Tracker
         </h2>
 
-        {savedMortgages.map((mortgage) => {
-          // Calculate current mortgage metrics
-          const mortgageLoanAmount = mortgage.homeValue - mortgage.downPayment;
-          const isCurrentMortgage = selectedMortgageId === mortgage.id;
+        <div className="space-y-4">
+          {savedMortgages.map((mortgage) => {
+            const loanAmount = mortgage.homeValue - mortgage.downPayment;
+            const isCurrentMortgage = selectedMortgageId === mortgage.id;
+            const baseMonthly = calculateMonthlyPayment(loanAmount, mortgage.interestRate, mortgage.tenure);
+            const paymentAmount = mortgage.paymentType === 'biweekly' ? baseMonthly / 2 : baseMonthly;
+            const paymentIntervalLabel = mortgage.paymentType === 'biweekly' ? '/bi-weekly' : '/mo';
 
-          // Calculate paid and remaining amounts from start date to today
-          let principalPaidFromPayments = 0; // Principal paid from loan payments (excluding down payment)
-          let principalPaid = mortgage.downPayment; // Total principal paid (including down payment)
-          let interestPaid = 0;
-          let principalRemaining = mortgageLoanAmount;
-          let interestRemaining = 0;
+            // Additional monthly costs
+            const taxMonthly = mortgage.propertyTax
+              ? (mortgage.propertyTaxPeriod === 'month' ? mortgage.propertyTax : mortgage.propertyTax / 12)
+              : 0;
+            const insuranceMonthly = mortgage.homeInsurance
+              ? (mortgage.homeInsurancePeriod === 'month' ? mortgage.homeInsurance : mortgage.homeInsurance / 12)
+              : 0;
+            const pmiMonthly = mortgage.pmiAmount || 0;
+            const hoaMonthly = mortgage.hoaFees || 0;
+            const additionalMonthly = taxMonthly + insuranceMonthly + pmiMonthly + hoaMonthly;
+            const additionalPerPayment = mortgage.paymentType === 'biweekly'
+              ? (additionalMonthly * 12) / 26
+              : additionalMonthly;
+            const truePaymentAmount = paymentAmount + additionalPerPayment;
 
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const startDateObj = new Date(mortgage.startDate);
-          startDateObj.setHours(0, 0, 0, 0);
+            // Paid vs remaining calculations
+            let principalPaidFromPayments = 0;
+            let interestPaid = 0;
+            let principalRemaining = loanAmount;
+            let interestRemaining = 0;
+            let payoffDate = formatDate(endDate);
 
-          if (isCurrentMortgage && schedule.length > 0) {
-            // Use current schedule if this is the selected mortgage
-            // Only count payments from start date to today
-            schedule.forEach((item) => {
-              const paymentDate = new Date(item.date);
-              paymentDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const startDateObj = new Date(mortgage.startDate);
+            startDateObj.setHours(0, 0, 0, 0);
 
-              if (paymentDate >= startDateObj && paymentDate <= today) {
-                principalPaidFromPayments += item.principal;
-                principalPaid += item.principal;
-                interestPaid += item.interest;
-              }
-            });
+            if (isCurrentMortgage && schedule.length > 0) {
+              schedule.forEach((item) => {
+                const paymentDate = new Date(item.date);
+                paymentDate.setHours(0, 0, 0, 0);
+                if (paymentDate >= startDateObj && paymentDate <= today) {
+                  principalPaidFromPayments += item.principal;
+                  interestPaid += item.interest;
+                }
+              });
+              principalRemaining = Math.max(0, loanAmount - principalPaidFromPayments);
+              interestRemaining = Math.max(0, totalInterest - interestPaid);
+            } else {
+              const annualRate = mortgage.interestRate / 100;
+              const effectiveExtraFrequency = mortgage.extraPaymentEnabled
+                ? (mortgage.extraPaymentFrequency === 'biweekly' && mortgage.paymentType === 'biweekly' ? 'biweekly' : 'monthly')
+                : 'monthly';
+              const mortgageOneTimePayments = mortgage.oneTimePayments || [];
 
-            // Outstanding loan = loan amount - principal paid from payments
-            principalRemaining = Math.max(0, mortgageLoanAmount - principalPaidFromPayments);
+              const calculation = mortgage.paymentType === 'biweekly'
+                ? calculateBiweeklyAmortization(
+                    loanAmount, annualRate,
+                    calculateMonthlyPayment(loanAmount, mortgage.interestRate, mortgage.tenure),
+                    mortgage.startDate,
+                    mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'biweekly',
+                    mortgage.extraPaymentStartDate, 'biweekly',
+                    mortgage.extraPaymentAmount, mortgageOneTimePayments
+                  )
+                : calculateMonthlyAmortization(
+                    loanAmount, annualRate, mortgage.tenure, mortgage.startDate,
+                    mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'monthly',
+                    mortgage.extraPaymentStartDate, 'monthly',
+                    mortgage.extraPaymentAmount, mortgageOneTimePayments
+                  );
 
-            // Calculate remaining interest (total interest - interest paid)
-            interestRemaining = Math.max(0, totalInterest - interestPaid);
-          } else {
-            const annualRate = mortgage.interestRate / 100;
-            const effectiveExtraFrequency = mortgage.extraPaymentEnabled
-              ? (mortgage.extraPaymentFrequency === 'biweekly' && mortgage.paymentType === 'biweekly' ? 'biweekly' : 'monthly')
-              : 'monthly';
-            const mortgageOneTimePayments = mortgage.oneTimePayments || [];
-            const principal = mortgageLoanAmount;
+              payoffDate = formatDate(calculation.endDate);
 
-            const calculation = mortgage.paymentType === 'biweekly'
-              ? calculateBiweeklyAmortization(
-                  principal,
-                  annualRate,
-                  calculateMonthlyPayment(principal, mortgage.interestRate, mortgage.tenure),
-                  mortgage.startDate,
-                  mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'biweekly',
-                  mortgage.extraPaymentStartDate,
-                  'biweekly',
-                  mortgage.extraPaymentAmount,
-                  mortgageOneTimePayments
-                )
-              : calculateMonthlyAmortization(
-                  principal,
-                  annualRate,
-                  mortgage.tenure,
-                  mortgage.startDate,
-                  mortgage.extraPaymentEnabled && effectiveExtraFrequency === 'monthly',
-                  mortgage.extraPaymentStartDate,
-                  'monthly',
-                  mortgage.extraPaymentAmount,
-                  mortgageOneTimePayments
-                );
+              calculation.schedule.forEach((item) => {
+                const paymentDate = new Date(item.date);
+                paymentDate.setHours(0, 0, 0, 0);
+                if (paymentDate >= startDateObj && paymentDate <= today) {
+                  principalPaidFromPayments += item.principal;
+                  interestPaid += item.interest;
+                }
+              });
+              principalRemaining = Math.max(0, loanAmount - principalPaidFromPayments);
+              interestRemaining = Math.max(0, calculation.totalInterest - interestPaid);
+            }
 
-            calculation.schedule.forEach((item) => {
-              const paymentDate = new Date(item.date);
-              paymentDate.setHours(0, 0, 0, 0);
+            const percentPaid = loanAmount > 0
+              ? Math.min(100, (principalPaidFromPayments / loanAmount) * 100)
+              : 0;
 
-              if (paymentDate >= startDateObj && paymentDate <= today) {
-                principalPaidFromPayments += item.principal;
-                principalPaid += item.principal;
-                interestPaid += item.interest;
-              }
-            });
-
-            principalRemaining = Math.max(0, principal - principalPaidFromPayments);
-            interestRemaining = Math.max(0, calculation.totalInterest - interestPaid);
-          }
-
-          return (
-            <div
-              key={mortgage.id}
-              className={`mb-4 p-4 rounded-lg border-2 ${isCurrentMortgage
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-slate-200 bg-slate-50'
+            return (
+              <div
+                key={mortgage.id}
+                className={`p-5 rounded-xl border-2 transition-colors ${
+                  isCurrentMortgage ? 'border-blue-400 bg-blue-50/50' : 'border-slate-200 bg-white'
                 }`}
-            >
-              {/* Mortgage Name */}
-              <div className="flex items-center justify-between mb-4">
-                {editingMortgageName === mortgage.id ? (
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="text"
-                      value={editingMortgageNameValue}
-                      onChange={(e) => setEditingMortgageNameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          onUpdateMortgageName(mortgage.id, editingMortgageNameValue);
-                        } else if (e.key === 'Escape') {
-                          setEditingMortgageName(null);
-                          setEditingMortgageNameValue('');
-                        }
-                      }}
-                      className="flex-1 px-3 py-2 text-base font-semibold border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => onUpdateMortgageName(mortgage.id, editingMortgageNameValue)}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded"
-                    >
-                      <Check className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingMortgageName(null);
-                        setEditingMortgageNameValue('');
-                      }}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <h3 className="text-lg font-bold text-slate-800">{mortgage.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          onLoadMortgage(mortgage);
-                          // Scroll to top of calculator to see the loaded values
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+              >
+                {/* Header: name + actions */}
+                <div className="flex items-center justify-between mb-4">
+                  {editingMortgageName === mortgage.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="text"
+                        value={editingMortgageNameValue}
+                        onChange={(e) => setEditingMortgageNameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') onUpdateMortgageName(mortgage.id, editingMortgageNameValue);
+                          else if (e.key === 'Escape') { setEditingMortgageName(null); setEditingMortgageNameValue(''); }
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                        title="Load and edit mortgage"
-                      >
-                        <Edit2 className="w-4 h-4" />
+                        className="flex-1 px-3 py-1.5 text-base font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        autoFocus
+                      />
+                      <button onClick={() => onUpdateMortgageName(mortgage.id, editingMortgageNameValue)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg">
+                        <Check className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => onDeleteMortgage(mortgage.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                      <button onClick={() => { setEditingMortgageName(null); setEditingMortgageNameValue(''); }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg">
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-800">{mortgage.name}</h3>
+                        <span className="text-xs text-slate-400 capitalize">{mortgage.paymentType} · started {formatDate(mortgage.startDate)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => { onLoadMortgage(mortgage); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Load and edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteMortgage(mortgage.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Hero row: monthly payment + payoff */}
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {formatCurrency(paymentAmount, mortgage.currency)}<span className="text-sm font-normal text-slate-500">{paymentIntervalLabel}</span>
+                    </div>
+                    {additionalMonthly > 0 && (
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {formatCurrency(truePaymentAmount, mortgage.currency)}{paymentIntervalLabel} true cost · incl. tax, insurance &amp; fees
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400">Payoff</div>
+                    <div className="text-base font-bold text-blue-600">{payoffDate}</div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>{formatCurrency(principalPaidFromPayments, mortgage.currency)} paid</span>
+                    <span className="font-semibold">{percentPaid.toFixed(0)}% done</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
+                      style={{ width: `${percentPaid}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400 mt-1">
+                    <span>{formatCurrency(0, mortgage.currency)}</span>
+                    <span>{formatCurrency(loanAmount, mortgage.currency)} loan</span>
+                  </div>
+                </div>
+
+                {/* Secondary stats */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 pt-3 border-t border-slate-100 text-sm">
+                  <div>
+                    <div className="text-xs text-slate-400">Outstanding balance</div>
+                    <div className="font-semibold text-red-500">
+                      {formatCurrency(isNaN(principalRemaining) ? loanAmount : principalRemaining, mortgage.currency)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Interest paid to date</div>
+                    <div className="font-semibold text-slate-700">{formatCurrency(interestPaid, mortgage.currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Interest remaining</div>
+                    <div className="font-semibold text-slate-700">
+                      {formatCurrency(isNaN(interestRemaining) ? 0 : interestRemaining, mortgage.currency)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Loan amount</div>
+                    <div className="font-semibold text-slate-700">{formatCurrency(loanAmount, mortgage.currency)}</div>
+                  </div>
+                </div>
               </div>
-
-              {/* KPI Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                {/* Loan Amount Taken */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">Loan Amount Taken</div>
-                  <div className="text-lg font-bold text-slate-800">
-                    {formatCurrency(mortgageLoanAmount, mortgage.currency)}
-                  </div>
-                </div>
-
-                {/* Outstanding Loan */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">Outstanding Loan</div>
-                  <div className="text-lg font-bold text-red-600">
-                    {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? mortgageLoanAmount : Math.max(0, principalRemaining), mortgage.currency)}
-                  </div>
-                </div>
-
-                {/* Payment Type */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">Payment Type</div>
-                  <div className="text-lg font-bold text-slate-800 capitalize">
-                    {mortgage.paymentType}
-                  </div>
-                  <div className="text-xs text-slate-400 my-1">----</div>
-                  <div className="text-xs text-slate-600 mt-2">Start Date</div>
-                  <div className="text-sm font-semibold text-slate-700">
-                    {formatDate(mortgage.startDate)}
-                  </div>
-                </div>
-
-                {/* Principal/Interest Paid */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">Paid Till Now</div>
-                  <div className="text-sm font-semibold text-green-600 mb-1">
-                    Principal: {formatCurrency(principalPaidFromPayments, mortgage.currency)}
-                  </div>
-                  <div className="text-xs text-slate-400 my-1">---</div>
-                  <div className="text-sm font-semibold text-green-600">
-                    Interest: {formatCurrency(interestPaid, mortgage.currency)}
-                  </div>
-                </div>
-
-                {/* Principal/Interest To Be Paid */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">To Be Paid</div>
-                  <div className="text-sm font-semibold text-orange-600 mb-1">
-                    Principal: {formatCurrency(isNaN(principalRemaining) || !isFinite(principalRemaining) ? 0 : Math.max(0, principalRemaining), mortgage.currency)}
-                  </div>
-                  <div className="text-xs text-slate-400 my-1">---</div>
-                  <div className="text-sm font-semibold text-orange-600">
-                    Interest: {formatCurrency(isNaN(interestRemaining) || !isFinite(interestRemaining) ? 0 : Math.max(0, interestRemaining), mortgage.currency)}
-                  </div>
-                </div>
-
-                {/* End Date */}
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-xs text-slate-600 mb-1">End Date</div>
-                  <div className="text-lg font-bold text-slate-800">
-                    {isCurrentMortgage ? formatDate(endDate) : (() => {
-                      const start = new Date(mortgage.startDate);
-                      const end = new Date(start);
-                      end.setFullYear(end.getFullYear() + mortgage.tenure);
-                      return formatDate(end.toISOString().split('T')[0]);
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
 
         {saveError && (
-          <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded">
-            {saveError}
-          </div>
+          <div className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{saveError}</div>
         )}
         {isSavingMortgage && (
-          <div className="mt-4 text-sm text-blue-600">
-            Saving...
-          </div>
+          <div className="mt-4 text-sm text-blue-500">Saving…</div>
         )}
       </div>
     </div>

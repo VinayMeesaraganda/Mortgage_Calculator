@@ -105,6 +105,7 @@ export interface SavedMortgage {
   propertyTaxPeriod?: 'year' | 'month';
   homeInsurance?: number;
   homeInsurancePeriod?: 'year' | 'month';
+  pmiAmount?: number;
   hoaFees?: number;
 }
 

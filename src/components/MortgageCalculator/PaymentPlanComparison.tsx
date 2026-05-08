@@ -37,6 +37,8 @@ interface PaymentPlanComparisonProps {
   graphRemainingInterestComparison: number;
   comparisonBarData: ComparisonBarDatum[];
   chartRenderKey: number;
+  isFullWidth?: boolean;
+  className?: string;
 }
 
 const PaymentPlanComparison: React.FC<PaymentPlanComparisonProps> = ({
@@ -53,10 +55,12 @@ const PaymentPlanComparison: React.FC<PaymentPlanComparisonProps> = ({
   graphRemainingInterest,
   graphRemainingInterestComparison,
   comparisonBarData,
-  chartRenderKey
+  chartRenderKey,
+  isFullWidth = false,
+  className = '',
 }) => {
   return (
-    <div className={CARD_STYLE} style={CARD_SHADOW}>
+    <div className={`${CARD_STYLE} ${className}`} style={CARD_SHADOW}>
       <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent rounded-xl pointer-events-none"></div>
       <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-green-400/10 to-transparent rounded-bl-full"></div>
       <div className="relative p-2">
@@ -137,7 +141,7 @@ const PaymentPlanComparison: React.FC<PaymentPlanComparisonProps> = ({
             </div>
           ) : (
             <div className="flex justify-center animate-fade-in">
-              <div className="w-full sm:w-3/4 md:w-1/2">
+              <div className={isFullWidth ? 'w-full' : 'w-full sm:w-3/4 md:w-1/2'}>
                 <div className="sr-only">
                   <h3>Payment Plan Comparison Chart</h3>
                   <p>
@@ -146,7 +150,7 @@ const PaymentPlanComparison: React.FC<PaymentPlanComparisonProps> = ({
                       : `Bar chart comparing Monthly Payments (${formatCurrency(paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest from today) vs Bi-weekly Payments (${formatCurrency(paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest from today). Bi-weekly saves ${formatCurrency(Math.abs(interestSaved))} in remaining interest.`}
                   </p>
                 </div>
-                <ResponsiveContainer key={`comparison-chart-${chartRenderKey}`} width="100%" height={275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(graphRemainingInterestComparison)} remaining interest versus Extra Payments with ${formatCurrency(graphRemainingInterest)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward`}>
+                <ResponsiveContainer key={`comparison-chart-${chartRenderKey}`} width="100%" height={isFullWidth ? 340 : 275} aria-label={isExtraPaymentComparison ? `Comparison chart showing Regular ${paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'} Payments with ${formatCurrency(graphRemainingInterestComparison)} remaining interest versus Extra Payments with ${formatCurrency(graphRemainingInterest)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward` : `Comparison chart showing Monthly Payments with ${formatCurrency(paymentType === 'monthly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest versus Bi-weekly Payments with ${formatCurrency(paymentType === 'biweekly' ? graphRemainingInterest : graphRemainingInterestComparison)} remaining interest, saving ${formatCurrency(Math.abs(interestSaved))} from today forward`}>
                   <BarChart data={comparisonBarData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} aria-label="Payment plan comparison bar chart">
                     <defs>
                       <linearGradient id="redBarGradient" x1="0" y1="0" x2="0" y2="1">

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X, ArrowUpRight, Check, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatting';
 import type { PaymentType } from '../../types/mortgage';
 
@@ -20,6 +22,7 @@ interface ScenarioCalc {
 
 interface ScenarioComparisonModalProps {
   isOpen: boolean;
+  isInline?: boolean;
   onClose: () => void;
   onApplyScenario: (scenario: ScenarioInput) => void;
   homeValue: number;
@@ -45,459 +48,294 @@ interface ScenarioComparisonModalProps {
   scenarioCCalc: ScenarioCalc;
 }
 
+const INPUT = 'w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary text-sm bg-white transition-colors';
+const SELECT = `${INPUT} cursor-pointer`;
+
+function Delta({ val, base, unit = '$' }: { val: number; base: number; unit?: string }) {
+  if (val === base) return <span className="flex items-center gap-1 text-slate-400 text-xs"><Minus className="w-3 h-3" /> Same</span>;
+  const better = val < base;
+  const diff = Math.abs(val - base);
+  const Icon = better ? TrendingDown : TrendingUp;
+  return (
+    <span className={`flex items-center gap-1 text-xs font-semibold ${better ? 'text-emerald-600' : 'text-red-500'}`}>
+      <Icon className="w-3 h-3" />
+      {unit === '$' ? formatCurrency(diff) : `${diff} yrs`} {better ? 'less' : 'more'}
+    </span>
+  );
+}
+
 const ScenarioComparisonModal: React.FC<ScenarioComparisonModalProps> = ({
-  isOpen,
-  onClose,
-  onApplyScenario,
-  homeValue,
-  downPayment,
-  interestRate,
-  tenure,
-  paymentType,
-  loanAmount,
-  scenarioB,
-  scenarioC,
-  setScenarioB,
-  setScenarioC,
-  editingScenarioBPercent,
-  setEditingScenarioBPercent,
-  rawScenarioBPercent,
-  setRawScenarioBPercent,
-  editingScenarioCPercent,
-  setEditingScenarioCPercent,
-  rawScenarioCPercent,
-  setRawScenarioCPercent,
-  currentScenarioBase,
-  scenarioBCalc,
-  scenarioCCalc
+  isOpen, isInline = false, onClose, onApplyScenario,
+  homeValue, downPayment, interestRate, tenure, paymentType,
+  scenarioB, scenarioC, setScenarioB, setScenarioC,
+  editingScenarioBPercent, setEditingScenarioBPercent, rawScenarioBPercent, setRawScenarioBPercent,
+  editingScenarioCPercent, setEditingScenarioCPercent, rawScenarioCPercent, setRawScenarioCPercent,
+  currentScenarioBase, scenarioBCalc, scenarioCCalc,
 }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (isOpen) document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fadeIn"
-      onClick={onClose}
-    >
+  const scenarios = [
+    {
+      label: 'Current Loan',
+      sublabel: 'Your baseline',
+      accent: 'border-slate-300',
+      headerBg: 'bg-slate-800',
+      calc: currentScenarioBase,
+      isBase: true,
+      inputs: null,
+    },
+    {
+      label: 'Scenario B',
+      sublabel: 'Alternative option',
+      accent: 'border-brand-primary',
+      headerBg: 'bg-brand-primary',
+      calc: scenarioBCalc,
+      isBase: false,
+      scenario: scenarioB,
+      setScenario: setScenarioB,
+      editingPercent: editingScenarioBPercent,
+      setEditingPercent: setEditingScenarioBPercent,
+      rawPercent: rawScenarioBPercent,
+      setRawPercent: setRawScenarioBPercent,
+    },
+    {
+      label: 'Scenario C',
+      sublabel: 'Another option',
+      accent: 'border-violet-400',
+      headerBg: 'bg-violet-600',
+      calc: scenarioCCalc,
+      isBase: false,
+      scenario: scenarioC,
+      setScenario: setScenarioC,
+      editingPercent: editingScenarioCPercent,
+      setEditingPercent: setEditingScenarioCPercent,
+      rawPercent: rawScenarioCPercent,
+      setRawPercent: setRawScenarioCPercent,
+    },
+  ] as const;
+
+  // Determine winner on total interest
+  const allInterest = [currentScenarioBase.totalInterest, scenarioBCalc.totalInterest, scenarioCCalc.totalInterest];
+  const minInterest = Math.min(...allInterest);
+
+  const panelContent = (
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300"
-        onClick={(e) => e.stopPropagation()}
+        className={isInline
+          ? "flex flex-col bg-white rounded-2xl border border-slate-200 overflow-hidden min-h-[560px]"
+          : "absolute inset-4 lg:inset-6 flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden"
+        }
+        onClick={e => e.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between shadow-lg z-10">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🏆</span>
-            <div>
-              <h2 className="text-xl font-bold">Compare Loan Options Side-by-Side</h2>
-              <p className="text-xs text-purple-100 mt-0.5">Find the best deal — Compare up to 3 different loan scenarios</p>
-            </div>
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-display font-bold text-slate-900">Compare Loan Scenarios</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Adjust Scenario B and C inputs — results update instantly</p>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:text-purple-200 transition-colors text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors flex-shrink-0"
+            aria-label="Close"
           >
-            ×
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-6">
-          <p className="text-sm text-slate-600 mb-4 italic bg-purple-50 p-3 rounded-lg border border-purple-200">
-            🛍️ <strong>Shopping for the best mortgage?</strong> Fill in up to 3 different loan scenarios and see which one saves you the most money. Your current loan is shown in the first column.
-          </p>
-
-          {/* Comparison Table */}
-          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-            <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[640px]">
-              <thead>
-                <tr className="border-b-2 border-purple-200">
-                  <th className="text-left p-2 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-20 min-w-[120px]">Metric</th>
-                  <th className="p-2 font-semibold text-purple-700 bg-amber-50 border-l-2 border-amber-300 min-w-[150px]">
-                    <div className="flex flex-col items-center">
-                      <span>Current Loan</span>
-                      <span className="text-[10px] text-amber-600 font-normal">⭐ Your Choice</span>
+        {/* ── Body ───────────────────────────────────────────────────────────── */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="p-6">
+            {/* 3-column scenario grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8 min-w-0">
+              {scenarios.map((s, idx) => (
+                <div key={idx} className={`rounded-2xl border-2 ${s.accent} overflow-hidden flex flex-col min-w-0`}>
+                  {/* Column header */}
+                  <div className={`${s.headerBg} px-4 py-3 flex items-center justify-between`}>
+                    <div>
+                      <p className="text-white font-semibold text-sm">{s.label}</p>
+                      <p className="text-white/70 text-xs">{s.sublabel}</p>
                     </div>
-                  </th>
-                  <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200 min-w-[150px]">
-                    <div className="flex flex-col items-center gap-2">
-                      <span>Scenario 2</span>
+                    {!s.isBase && (
                       <button
-                        onClick={() => onApplyScenario(scenarioB)}
-                        className="flex items-center gap-1.5 bg-purple-600 text-white px-3 py-1 rounded-md hover:bg-purple-700 transition-colors shadow-sm text-xs cursor-pointer"
+                        onClick={() => onApplyScenario((s as typeof scenarios[1]).scenario!)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition-colors"
                       >
-                        <span className="font-bold whitespace-nowrap">🚀 Apply</span>
+                        Apply <ArrowUpRight className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                    {s.isBase && s.calc.totalInterest === minInterest && (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-emerald-400/30 text-emerald-100 rounded-lg text-xs font-semibold">
+                        <Check className="w-3 h-3" /> Best
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Inputs */}
+                  <div className="p-4 space-y-3 flex-1">
+                    {/* Home Value */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Home Value</label>
+                      {s.isBase
+                        ? <p className="px-3 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-800 border border-slate-200">{formatCurrency(homeValue)}</p>
+                        : <input type="text" className={INPUT}
+                            value={(s as typeof scenarios[1]).scenario!.homeValue.toLocaleString()}
+                            onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, homeValue: v === '' ? 0 : Number(v) })); }}
+                            placeholder="$" />
+                      }
                     </div>
-                  </th>
-                  <th className="p-2 font-semibold text-purple-700 bg-purple-50 border-l-2 border-purple-200 min-w-[150px]">
-                    <div className="flex flex-col items-center gap-2">
-                      <span>Scenario 3</span>
-                      <button
-                        onClick={() => onApplyScenario(scenarioC)}
-                        className="flex items-center gap-1.5 bg-purple-600 text-white px-3 py-1 rounded-md hover:bg-purple-700 transition-colors shadow-sm text-xs cursor-pointer"
-                      >
-                        <span className="font-bold whitespace-nowrap">🚀 Apply</span>
-                      </button>
+
+                    {/* Down Payment */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Down Payment</label>
+                      {s.isBase
+                        ? <p className="px-3 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-800 border border-slate-200">
+                            {formatCurrency(downPayment)} <span className="text-slate-400 text-xs">({homeValue > 0 ? ((downPayment / homeValue) * 100).toFixed(1) : 0}%)</span>
+                          </p>
+                        : <div className="flex gap-2">
+                            <input type="text" className={INPUT}
+                              value={(s as typeof scenarios[1]).scenario!.downPayment.toLocaleString()}
+                              onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, downPayment: v === '' ? 0 : Number(v) })); }}
+                              placeholder="Amount" />
+                            <input type="text" className="w-16 px-2 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary text-sm text-center bg-white"
+                              value={(s as typeof scenarios[1]).editingPercent
+                                ? (s as typeof scenarios[1]).rawPercent
+                                : ((s as typeof scenarios[1]).scenario!.homeValue > 0 ? (((s as typeof scenarios[1]).scenario!.downPayment / (s as typeof scenarios[1]).scenario!.homeValue) * 100).toFixed(1) : '0.0')}
+                              onChange={e => {
+                                (s as typeof scenarios[1]).setEditingPercent!(true);
+                                const c = e.target.value.replace(/,/g, '');
+                                (s as typeof scenarios[1]).setRawPercent!(c);
+                                if (/^\d*\.?\d*$/.test(c)) {
+                                  const pct = Number(c);
+                                  if (!isNaN(pct) && pct >= 0 && pct <= 100)
+                                    (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, downPayment: (prev.homeValue * pct) / 100 }));
+                                }
+                              }}
+                              onFocus={() => { (s as typeof scenarios[1]).setEditingPercent!(true); (s as typeof scenarios[1]).setRawPercent!(((s as typeof scenarios[1]).scenario!.homeValue > 0 ? (((s as typeof scenarios[1]).scenario!.downPayment / (s as typeof scenarios[1]).scenario!.homeValue) * 100).toFixed(1) : '0.0')); }}
+                              onBlur={() => { (s as typeof scenarios[1]).setEditingPercent!(false); (s as typeof scenarios[1]).setRawPercent!(''); }}
+                              placeholder="%" />
+                          </div>
+                      }
                     </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Home Value */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Home Value</td>
-                  <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(homeValue)}
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioB.homeValue.toLocaleString()}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setScenarioB({ ...scenarioB, homeValue: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="$"
-                    />
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioC.homeValue.toLocaleString()}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setScenarioC({ ...scenarioC, homeValue: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="$"
-                    />
-                  </td>
-                </tr>
 
-                {/* Down Payment */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Down Payment</td>
-                  <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(downPayment)}
-                    <div className="text-[10px] text-slate-500">
-                      {homeValue > 0 ? ((downPayment / homeValue) * 100).toFixed(1) : '0.0'}%
+                    {/* Interest Rate */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Interest Rate</label>
+                      {s.isBase
+                        ? <p className="px-3 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-800 border border-slate-200">{interestRate}%</p>
+                        : <input type="text" className={INPUT}
+                            value={(s as typeof scenarios[1]).scenario!.interestRate}
+                            onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, ''); (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, interestRate: v === '' ? 0 : Number(v) })); }}
+                            placeholder="%" />
+                      }
                     </div>
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <div className="flex items-center gap-1 justify-center">
-                      <input
-                        type="text"
-                        value={scenarioB.downPayment.toLocaleString()}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9]/g, '');
-                          setScenarioB({ ...scenarioB, downPayment: val === '' ? 0 : Number(val) });
-                        }}
-                        className="flex-1 px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                        placeholder="$"
-                      />
-                      <span className="text-purple-400 text-sm">|</span>
-                      <input
-                        type="text"
-                        value={editingScenarioBPercent
-                          ? rawScenarioBPercent
-                          : (scenarioB.homeValue > 0 ? ((scenarioB.downPayment / scenarioB.homeValue) * 100).toFixed(1) : '0.0')}
-                        onChange={(e) => {
-                          setEditingScenarioBPercent(true);
-                          const cleaned = e.target.value.replace(/,/g, '');
-                          setRawScenarioBPercent(cleaned);
-                          if (cleaned && /^\d*\.?\d*$/.test(cleaned)) {
-                            const percent = Number(cleaned);
-                            if (!isNaN(percent) && percent >= 0 && percent <= 100) {
-                              setScenarioB({ ...scenarioB, downPayment: (scenarioB.homeValue * percent) / 100 });
-                            }
-                          }
-                        }}
-                        onFocus={() => {
-                          setEditingScenarioBPercent(true);
-                          setRawScenarioBPercent(scenarioB.homeValue > 0 ? ((scenarioB.downPayment / scenarioB.homeValue) * 100).toFixed(1) : '0.0');
-                        }}
-                        onBlur={() => {
-                          setEditingScenarioBPercent(false);
-                          setRawScenarioBPercent('');
-                        }}
-                        className="w-16 px-1 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                        placeholder="%"
-                      />
+
+                    {/* Term */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Loan Term (years)</label>
+                      {s.isBase
+                        ? <p className="px-3 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-800 border border-slate-200">{tenure} years</p>
+                        : <input type="text" className={INPUT}
+                            value={(s as typeof scenarios[1]).scenario!.tenure}
+                            onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, tenure: v === '' ? 0 : Number(v) })); }}
+                            placeholder="years" />
+                      }
                     </div>
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <div className="flex items-center gap-1 justify-center">
-                      <input
-                        type="text"
-                        value={scenarioC.downPayment.toLocaleString()}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9]/g, '');
-                          setScenarioC({ ...scenarioC, downPayment: val === '' ? 0 : Number(val) });
-                        }}
-                        className="flex-1 px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                        placeholder="$"
-                      />
-                      <span className="text-purple-400 text-sm">|</span>
-                      <input
-                        type="text"
-                        value={editingScenarioCPercent
-                          ? rawScenarioCPercent
-                          : (scenarioC.homeValue > 0 ? ((scenarioC.downPayment / scenarioC.homeValue) * 100).toFixed(1) : '0.0')}
-                        onChange={(e) => {
-                          setEditingScenarioCPercent(true);
-                          const cleaned = e.target.value.replace(/,/g, '');
-                          setRawScenarioCPercent(cleaned);
-                          if (cleaned && /^\d*\.?\d*$/.test(cleaned)) {
-                            const percent = Number(cleaned);
-                            if (!isNaN(percent) && percent >= 0 && percent <= 100) {
-                              setScenarioC({ ...scenarioC, downPayment: (scenarioC.homeValue * percent) / 100 });
-                            }
-                          }
-                        }}
-                        onFocus={() => {
-                          setEditingScenarioCPercent(true);
-                          setRawScenarioCPercent(scenarioC.homeValue > 0 ? ((scenarioC.downPayment / scenarioC.homeValue) * 100).toFixed(1) : '0.0');
-                        }}
-                        onBlur={() => {
-                          setEditingScenarioCPercent(false);
-                          setRawScenarioCPercent('');
-                        }}
-                        className="w-16 px-1 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                        placeholder="%"
-                      />
+
+                    {/* Payment Type */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Payment Frequency</label>
+                      {s.isBase
+                        ? <p className="px-3 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-800 border border-slate-200 capitalize">{paymentType}</p>
+                        : <select className={SELECT}
+                            value={(s as typeof scenarios[1]).scenario!.paymentType}
+                            onChange={e => (s as typeof scenarios[1]).setScenario!(prev => ({ ...prev, paymentType: e.target.value as PaymentType }))}>
+                            <option value="monthly">Monthly</option>
+                            <option value="biweekly">Bi-weekly</option>
+                          </select>
+                      }
                     </div>
-                  </td>
-                </tr>
+                  </div>
 
-                {/* Loan Amount (Calculated) */}
-                <tr className="border-b-2 border-purple-200 bg-purple-50/30">
-                  <td className="p-2 text-slate-700 font-semibold bg-slate-50 sticky left-0 z-10 min-w-[120px]">💰 Loan Amount</td>
-                  <td className="p-2 text-center font-bold text-amber-700 bg-amber-50/50 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(loanAmount)}
-                  </td>
-                  <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100 min-w-[150px]">
-                    {formatCurrency(scenarioBCalc.loanAmount)}
-                  </td>
-                  <td className="p-2 text-center font-bold text-purple-700 border-l-2 border-purple-100 min-w-[150px]">
-                    {formatCurrency(scenarioCCalc.loanAmount)}
-                  </td>
-                </tr>
+                  {/* Results */}
+                  <div className={`p-4 border-t ${s.calc.totalInterest === minInterest ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Results</p>
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Loan amount</span>
+                        <span className="text-sm font-semibold text-slate-800 tabular-nums">{formatCurrency(s.calc.loanAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Monthly payment</span>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(s.calc.payment)}</span>
+                          {!s.isBase && <div className="mt-0.5"><Delta val={s.calc.payment} base={currentScenarioBase.payment} /></div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Total interest</span>
+                        <div className="text-right">
+                          <span className={`text-sm font-bold tabular-nums ${s.calc.totalInterest === minInterest ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {formatCurrency(s.calc.totalInterest)}
+                          </span>
+                          {!s.isBase && <div className="mt-0.5"><Delta val={s.calc.totalInterest} base={currentScenarioBase.totalInterest} /></div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Total paid</span>
+                        <span className="text-sm font-semibold text-slate-800 tabular-nums">{formatCurrency(s.calc.totalPaid)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Term</span>
+                        <div className="text-right">
+                          <span className="text-sm font-semibold text-slate-800">{s.calc.tenure} yrs</span>
+                          {!s.isBase && <div className="mt-0.5"><Delta val={s.calc.tenure} base={currentScenarioBase.tenure} unit="yr" /></div>}
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Interest Rate */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Interest Rate</td>
-                  <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {interestRate}%
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioB.interestRate}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9.]/g, '');
-                        setScenarioB({ ...scenarioB, interestRate: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="%"
-                    />
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioC.interestRate}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9.]/g, '');
-                        setScenarioC({ ...scenarioC, interestRate: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="%"
-                    />
-                  </td>
-                </tr>
+                    {/* Best badge */}
+                    {s.calc.totalInterest === minInterest && (
+                      <div className="mt-3 flex items-center justify-center gap-1.5 py-1.5 bg-emerald-100 rounded-lg border border-emerald-200">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-xs font-bold text-emerald-700">Lowest interest cost</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                {/* Loan Term */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Loan Term</td>
-                  <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {tenure} years
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioB.tenure}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setScenarioB({ ...scenarioB, tenure: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="years"
-                    />
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <input
-                      type="text"
-                      value={scenarioC.tenure}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setScenarioC({ ...scenarioC, tenure: val === '' ? 0 : Number(val) });
-                      }}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center"
-                      placeholder="years"
-                    />
-                  </td>
-                </tr>
-
-                {/* Payment Type */}
-                <tr className="border-b-2 border-purple-200 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Payment Type</td>
-                  <td className="p-2 text-center font-semibold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {paymentType === 'monthly' ? 'Monthly' : 'Bi-weekly'}
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <select
-                      value={scenarioB.paymentType}
-                      onChange={(e) => setScenarioB({ ...scenarioB, paymentType: e.target.value as PaymentType })}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                    </select>
-                  </td>
-                  <td className="p-2 border-l-2 border-purple-100 min-w-[150px]">
-                    <select
-                      value={scenarioC.paymentType}
-                      onChange={(e) => setScenarioC({ ...scenarioC, paymentType: e.target.value as PaymentType })}
-                      className="w-full px-2 py-1 border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 text-center text-xs"
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                    </select>
-                  </td>
-                </tr>
-
-                {/* Results Header */}
-                <tr className="bg-purple-100">
-                  <td colSpan={4} className="p-2 text-center font-bold text-purple-800 uppercase tracking-wider">
-                    💰 Comparison Results
-                  </td>
-                </tr>
-
-                {/* Monthly Payment */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Monthly Payment</td>
-                  <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(currentScenarioBase.payment)}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioBCalc.payment < currentScenarioBase.payment ? 'text-green-700 bg-green-50' :
-                    scenarioBCalc.payment > currentScenarioBase.payment ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioBCalc.payment)}
-                    {scenarioBCalc.payment < currentScenarioBase.payment && <span className="ml-1">✓</span>}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioCCalc.payment < currentScenarioBase.payment ? 'text-green-700 bg-green-50' :
-                    scenarioCCalc.payment > currentScenarioBase.payment ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioCCalc.payment)}
-                    {scenarioCCalc.payment < currentScenarioBase.payment && <span className="ml-1">✓</span>}
-                  </td>
-                </tr>
-
-                {/* Total Interest */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Total Interest Paid</td>
-                  <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(currentScenarioBase.totalInterest)}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioBCalc.totalInterest < currentScenarioBase.totalInterest ? 'text-green-700 bg-green-50' :
-                    scenarioBCalc.totalInterest > currentScenarioBase.totalInterest ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioBCalc.totalInterest)}
-                    {scenarioBCalc.totalInterest < currentScenarioBase.totalInterest && <span className="ml-1">💚</span>}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioCCalc.totalInterest < currentScenarioBase.totalInterest ? 'text-green-700 bg-green-50' :
-                    scenarioCCalc.totalInterest > currentScenarioBase.totalInterest ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioCCalc.totalInterest)}
-                    {scenarioCCalc.totalInterest < currentScenarioBase.totalInterest && <span className="ml-1">💚</span>}
-                  </td>
-                </tr>
-
-                {/* Total Amount Paid */}
-                <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Total Amount Paid</td>
-                  <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {formatCurrency(currentScenarioBase.totalPaid)}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioBCalc.totalPaid < currentScenarioBase.totalPaid ? 'text-green-700 bg-green-50' :
-                    scenarioBCalc.totalPaid > currentScenarioBase.totalPaid ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioBCalc.totalPaid)}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioCCalc.totalPaid < currentScenarioBase.totalPaid ? 'text-green-700 bg-green-50' :
-                    scenarioCCalc.totalPaid > currentScenarioBase.totalPaid ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {formatCurrency(scenarioCCalc.totalPaid)}
-                  </td>
-                </tr>
-
-                {/* Payoff Time */}
-                <tr className="border-b-2 border-purple-200 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-2 text-slate-600 bg-slate-50 sticky left-0 z-10 min-w-[120px]">Time to Pay Off</td>
-                  <td className="p-2 text-center font-bold text-slate-800 bg-amber-50/30 border-l-2 border-amber-200 min-w-[150px]">
-                    {currentScenarioBase.tenure} years
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioBCalc.tenure < currentScenarioBase.tenure ? 'text-green-700 bg-green-50' :
-                    scenarioBCalc.tenure > currentScenarioBase.tenure ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {scenarioBCalc.tenure} years
-                    {scenarioBCalc.tenure < currentScenarioBase.tenure && <span className="ml-1">⚡</span>}
-                  </td>
-                  <td className={`p-2 text-center font-bold border-l-2 border-purple-100 min-w-[150px] ${scenarioCCalc.tenure < currentScenarioBase.tenure ? 'text-green-700 bg-green-50' :
-                    scenarioCCalc.tenure > currentScenarioBase.tenure ? 'text-red-700 bg-red-50' : 'text-slate-800'
-                    }`}>
-                    {scenarioCCalc.tenure} years
-                    {scenarioCCalc.tenure < currentScenarioBase.tenure && <span className="ml-1">⚡</span>}
-                  </td>
-                </tr>
-
-                {/* Savings vs Current */}
-                <tr className="bg-gradient-to-r from-purple-50 to-indigo-50 font-bold">
-                  <td className="p-3 text-purple-800 bg-slate-50 sticky left-0 z-10 min-w-[120px]">💰 Savings vs Current</td>
-                  <td className="p-3 text-center text-amber-700 bg-amber-100 border-l-2 border-amber-300 min-w-[150px]">
-                    Current Choice
-                  </td>
-                  <td className={`p-3 text-center border-l-2 border-purple-200 min-w-[150px] ${scenarioBCalc.totalInterest < currentScenarioBase.totalInterest
-                    ? 'bg-gradient-to-br from-green-100 to-emerald-100 text-green-800'
-                    : 'bg-gradient-to-br from-red-100 to-rose-100 text-red-800'
-                    }`}>
-                    {scenarioBCalc.totalInterest < currentScenarioBase.totalInterest
-                      ? `💚 Save ${formatCurrency(currentScenarioBase.totalInterest - scenarioBCalc.totalInterest)}`
-                      : `❌ Pay ${formatCurrency(scenarioBCalc.totalInterest - currentScenarioBase.totalInterest)} more`
-                    }
-                  </td>
-                  <td className={`p-3 text-center border-l-2 border-purple-200 min-w-[150px] ${scenarioCCalc.totalInterest < currentScenarioBase.totalInterest
-                    ? 'bg-gradient-to-br from-green-100 to-emerald-100 text-green-800'
-                    : 'bg-gradient-to-br from-red-100 to-rose-100 text-red-800'
-                    }`}>
-                    {scenarioCCalc.totalInterest < currentScenarioBase.totalInterest
-                      ? `💚 Save ${formatCurrency(currentScenarioBase.totalInterest - scenarioCCalc.totalInterest)}`
-                      : `❌ Pay ${formatCurrency(scenarioCCalc.totalInterest - currentScenarioBase.totalInterest)} more`
-                    }
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
-            <p className="text-xs text-slate-600 text-center">
-              💡 <strong>Tip:</strong> Green = Better than current | Red = Worse than current |
-              Lower interest rates and shorter terms typically save money but increase monthly payments.
-            </p>
+            {/* Summary callout */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs text-slate-500 font-medium">
+                <span className="font-semibold text-slate-700">How to use: </span>
+                Edit the Scenario B or C columns above. The option with the lowest total interest is highlighted in green.
+                Click <strong>Apply</strong> on any scenario to load it into the main calculator.
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+  );
+
+  if (isInline) return panelContent;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Compare loan scenarios"
+    >
+      {panelContent}
+    </div>,
+    document.body
   );
 };
 
