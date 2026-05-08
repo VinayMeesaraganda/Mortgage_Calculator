@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Heart, Shield, Car, Home } from 'lucide-react';
 import type { Insurance, InsuranceCategory } from '../../types/insurance';
 
@@ -7,13 +8,25 @@ interface AddInsuranceModalProps {
     onClose: () => void;
     onSave: (insurance: Omit<Insurance, 'id' | 'createdAt' | 'updatedAt'>) => void;
     editInsurance?: Insurance;
+    /** Pre-select a category and skip step 1 (e.g. 'home' when launched from a mortgage card) */
+    defaultCategory?: InsuranceCategory;
+    /** Auto-link the new policy to a saved mortgage */
+    defaultMortgageId?: string;
+    /** Property name shown in the header subtitle */
+    defaultPropertyName?: string;
+    /** List of saved mortgages to show in the Linked Property dropdown */
+    savedMortgages?: { id: string; name: string }[];
 }
 
 export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
     isOpen,
     onClose,
     onSave,
-    editInsurance
+    editInsurance,
+    defaultCategory,
+    defaultMortgageId,
+    defaultPropertyName,
+    savedMortgages = [],
 }) => {
     const [step, setStep] = useState(1);
     const [category, setCategory] = useState<InsuranceCategory | null>(null);
@@ -42,7 +55,8 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
     const [idv, setIdv] = useState('');
 
     // Home-specific fields
-    const [propertyType, setPropertyType] = useState<'apartment' | 'independent_house' | 'villa'>('apartment');
+    const [propertyType, setPropertyType] = useState<'apartment' | 'independent_house' | 'villa' | 'townhouse'>('apartment');
+    const [linkedMortgageId, setLinkedMortgageId] = useState<string>('');
     const [structureCover, setStructureCover] = useState('');
 
     // Initialize form when editInsurance changes
@@ -77,8 +91,6 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
             setStep(2); // Skip category selection when editing
         } else if (isOpen) {
             // Reset form for new insurance when modal opens
-            setStep(1);
-            setCategory(null);
             setProvider('');
             setPolicyNumber('');
             setPremium('');
@@ -96,8 +108,17 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
             setIdv('');
             setPropertyType('apartment');
             setStructureCover('');
+            setLinkedMortgageId(defaultMortgageId ?? '');
+            // If a default category is provided, skip step 1
+            if (defaultCategory) {
+                setCategory(defaultCategory);
+                setStep(2);
+            } else {
+                setStep(1);
+                setCategory(null);
+            }
         }
-    }, [editInsurance, isOpen]);
+    }, [editInsurance, isOpen, defaultCategory]);
 
     if (!isOpen) return null;
 
@@ -184,6 +205,11 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
             };
         }
 
+        // Attach mortgageId — from dropdown selection or from the default prop
+        const resolvedMortgageId = linkedMortgageId || defaultMortgageId;
+        if (resolvedMortgageId) {
+            insuranceData.mortgageId = resolvedMortgageId;
+        }
         onSave(insuranceData);
         onClose();
         resetForm();
@@ -209,13 +235,18 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
         { id: 'home' as const, name: 'Home Insurance', icon: Home, color: 'purple' }
     ];
 
-    return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4">
+    return createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-0 sm:p-4">
             <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-800">
                         {editInsurance ? 'Edit Insurance Policy' : 'Add New Insurance Policy'}
                     </h2>
+                    {defaultPropertyName && !editInsurance && (
+                        <p className="text-xs text-blue-600 font-semibold mt-0.5">
+                            Linked to: {defaultPropertyName}
+                        </p>
+                    )}
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                         <X size={20} />
                     </button>
@@ -451,12 +482,13 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
                                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
                                         >
                                             <option value="apartment">Apartment</option>
+                                            <option value="townhouse">Townhouse</option>
                                             <option value="independent_house">Independent House</option>
                                             <option value="villa">Villa</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Structure Cover (₹)</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Structure Cover ($)</label>
                                         <input
                                             type="number"
                                             value={structureCover}
@@ -466,6 +498,28 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
                                             required
                                         />
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Linked Property — shown for home policies when mortgages exist */}
+                            {category === 'home' && savedMortgages.length > 0 && (
+                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                                    <label className="block text-sm font-semibold text-blue-800 mb-1">
+                                        Linked Property
+                                    </label>
+                                    <p className="text-xs text-blue-600 mb-2">
+                                        Link this policy to one of your saved mortgages so it appears on the property card.
+                                    </p>
+                                    <select
+                                        value={linkedMortgageId}
+                                        onChange={(e) => setLinkedMortgageId(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all outline-none text-sm"
+                                    >
+                                        <option value="">— Not linked to a property —</option>
+                                        {savedMortgages.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
@@ -511,6 +565,7 @@ export const AddInsuranceModal: React.FC<AddInsuranceModalProps> = ({
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

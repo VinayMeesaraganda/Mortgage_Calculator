@@ -241,6 +241,10 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
   // True only when a user action has produced unsaved local changes.
   // Subscription-driven state changes must never set this — that's what breaks the loop.
   const pendingLocalSaveRef = useRef(false);
+  // Blocks auto-save write-back while a mortgage is being loaded from URL params.
+  // Without this, handleUpdateCurrentMortgage fires 2s after load and can overwrite
+  // a concurrent Dashboard save (e.g. convert primary→investment).
+  const isAutoLoadingRef = useRef(false);
 
   // Use custom hooks for number inputs - eliminates ~150 lines of repetitive code
   const homeValueInput = useNumberInput(400000, 400000, 'homeValue');
@@ -745,16 +749,21 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
   ]);
 
 
-  // Auto-load a specific mortgage from the ?load= URL param (e.g. from Dashboard card)
-  const hasAutoLoadedRef = useRef(false);
+  // Auto-load a specific mortgage from the ?load= URL param (e.g. from Dashboard card).
+  // We track the last-loaded updatedAt so that if the Firestore subscription later delivers
+  // a fresher version (e.g. just converted primary→investment on Dashboard), we re-load it.
+  const lastAutoLoadedAtRef = useRef<string | null>(null);
   useEffect(() => {
     const loadId = searchParams.get('load');
-    if (!loadId || isLoadingMortgages || hasAutoLoadedRef.current || savedMortgages.length === 0) return;
+    if (!loadId || isLoadingMortgages || savedMortgages.length === 0) return;
     const mortgage = savedMortgages.find(m => m.id === loadId);
-    if (mortgage) {
-      handleLoadMortgage(mortgage);
-      hasAutoLoadedRef.current = true;
-    }
+    if (!mortgage) return;
+    if (lastAutoLoadedAtRef.current === mortgage.updatedAt) return; // already have this version
+    lastAutoLoadedAtRef.current = mortgage.updatedAt;
+    isAutoLoadingRef.current = true;
+    handleLoadMortgage(mortgage);
+    // Clear the write-back block after debounce + buffer so user edits are saved normally
+    setTimeout(() => { isAutoLoadingRef.current = false; }, 2500);
   }, [searchParams, savedMortgages, isLoadingMortgages, handleLoadMortgage]);
 
   // Convert a loaded primary mortgage to investment — updates saved data AND live form state
@@ -785,12 +794,17 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
     success('Converted to investment property');
   }, [monthlyRentInput, maintenanceInput, utilitiesInput, success]);
 
-  // Update current mortgage data
+  // Update current mortgage data.
+  // IMPORTANT: propertyType is intentionally NOT in deps and NOT written here.
+  // Tab toggling must not permanently convert the mortgage type — only explicit
+  // Convert actions (Convert to rental / Convert to primary) should change it.
+  // We preserve m.propertyType (the saved value) on every auto-update.
   const handleUpdateCurrentMortgage = useCallback(() => {
     if (!selectedMortgageId || !currentUser) return;
+    if (isAutoLoadingRef.current) return;
 
     lastLocalChangeRef.current = Date.now();
-      pendingLocalSaveRef.current = true;
+    pendingLocalSaveRef.current = true;
     setSavedMortgages(prev => prev.map(m =>
       m.id === selectedMortgageId ? {
         ...m,
@@ -807,7 +821,7 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
         oneTimePayments: [...oneTimePayments],
         currency: selectedCurrency,
         updatedAt: new Date().toISOString(),
-        propertyType,
+        // propertyType preserved from saved mortgage — do not overwrite with UI tab state
         monthlyRent: monthlyRentInput.value,
         vacancyRate,
         propertyManagementPercent,
@@ -821,7 +835,7 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
         hoaFees
       } : m
     ));
-  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency, propertyType, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, hoaFees]);
+  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments, selectedCurrency, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, hoaFees]);
 
   // Auto-update selected mortgage when form values change (debounced)
   useEffect(() => {
@@ -832,7 +846,7 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
 
       return () => clearTimeout(updateTimer);
     }
-  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments.length, selectedCurrency, handleUpdateCurrentMortgage, propertyType, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, hoaFees]);
+  }, [selectedMortgageId, currentUser, homeValueInput.value, downPaymentInput.value, interestRateInput.value, tenureInput.value, startDate, paymentType, extraPaymentEnabled, extraPaymentAmountInput.value, extraPaymentStartDate, extraPaymentFrequency, oneTimePayments.length, selectedCurrency, handleUpdateCurrentMortgage, monthlyRentInput.value, vacancyRate, propertyManagementPercent, maintenanceInput.value, utilitiesInput.value, propertyAppreciationRate, propertyTax, propertyTaxPeriod, homeInsurance, homeInsurancePeriod, hoaFees]);
 
   // Calculate monthly additional costs (moved here after loanAmount is available)
   const monthlyPropertyTax = propertyTaxPeriod === 'year' ? propertyTax / 12 : propertyTax;
@@ -1711,7 +1725,18 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
                 {/* Primary / Investment toggle */}
                 <div className="flex rounded-lg bg-slate-100 p-1 gap-1">
                   <button
-                    onClick={() => setPropertyType('primary')}
+                    onClick={() => {
+                      setPropertyType('primary');
+                      // If the loaded mortgage is an investment property, deselect it
+                      // so primary and investment mortgages stay in their own tab
+                      if (selectedMortgageId) {
+                        const loaded = savedMortgages.find(s => s.id === selectedMortgageId);
+                        if (loaded && (loaded.propertyType || 'primary') !== 'primary') {
+                          setSelectedMortgageId(null);
+                          setNewMortgageName('');
+                        }
+                      }
+                    }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
                       propertyType === 'primary'
                         ? 'bg-white shadow text-blue-700'
@@ -1721,7 +1746,17 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
                     🏠 Primary Home
                   </button>
                   <button
-                    onClick={() => setPropertyType('investment')}
+                    onClick={() => {
+                      setPropertyType('investment');
+                      // If the loaded mortgage is a primary property, deselect it
+                      if (selectedMortgageId) {
+                        const loaded = savedMortgages.find(s => s.id === selectedMortgageId);
+                        if (loaded && (loaded.propertyType || 'primary') !== 'investment') {
+                          setSelectedMortgageId(null);
+                          setNewMortgageName('');
+                        }
+                      }
+                    }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
                       propertyType === 'investment'
                         ? 'bg-white shadow text-emerald-700'
@@ -1732,18 +1767,41 @@ const MortgageCalculator: React.FC<MortgageCalculatorProps> = ({ activeView = 'c
                   </button>
                 </div>
 
-                {/* Convert to rental — only when a primary mortgage is loaded */}
-                {selectedMortgageId && propertyType === 'primary' && (() => {
+                {/* Convert buttons — only when a saved mortgage is loaded */}
+                {selectedMortgageId && (() => {
                   const m = savedMortgages.find(s => s.id === selectedMortgageId);
-                  return m ? (
+                  if (!m) return null;
+                  if (propertyType === 'primary') {
+                    return (
+                      <button
+                        onClick={() => setConvertingMortgage(m)}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Convert this mortgage to a rental investment
+                      </button>
+                    );
+                  }
+                  return (
                     <button
-                      onClick={() => setConvertingMortgage(m)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors"
+                      onClick={() => {
+                        if (!window.confirm(`Convert "${m.name}" back to a primary residence?`)) return;
+                        const updated = savedMortgages.map(s => s.id !== m.id ? s : {
+                          ...s,
+                          propertyType: 'primary' as const,
+                          updatedAt: new Date().toISOString(),
+                        });
+                        lastLocalChangeRef.current = Date.now();
+                        pendingLocalSaveRef.current = true;
+                        setSavedMortgages(updated);
+                        setPropertyType('primary');
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      Convert this mortgage to a rental investment
+                      Convert back to primary residence
                     </button>
-                  ) : null;
+                  );
                 })()}
 
                 {/* Currency — lives here, not in a separate header */}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Calculator, ArrowRightLeft,
@@ -10,11 +10,15 @@ import { useSavedMortgages } from '../hooks/useSavedMortgages';
 import { computeMortgageMetrics } from '../utils/mortgageMetrics';
 import { formatCurrency } from '../utils/formatting';
 import { saveMortgages } from '../services/mortgageService';
+import { loadInsurances, saveInsurances } from '../services/insuranceService';
 import AppNav from '../layouts/AppNav';
 import MortgageCard from '../components/Dashboard/MortgageCard';
 import ConvertToInvestmentModal, { type RentalSetup } from '../components/Dashboard/ConvertToInvestmentModal';
+import PropertyReminders from '../components/Dashboard/PropertyReminders';
 import LoginModal from '../components/LoginModal';
 import type { SavedMortgage } from '../types/mortgage';
+import type { Insurance } from '../types/insurance';
+import type { Lease } from '../types/lease';
 
 // ─── Portfolio metric tile ────────────────────────────────────────────────────
 interface MetricTileProps {
@@ -75,9 +79,23 @@ function todayStr(): string {
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 const Dashboard: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
-  const { mortgages, isLoading } = useSavedMortgages();
+  const { mortgages, isLoading, setMortgages } = useSavedMortgages();
   const [showLogin, setShowLogin] = useState(false);
   const [convertingMortgage, setConvertingMortgage] = useState<SavedMortgage | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [insurances, setInsurances] = useState<Insurance[]>([]);
+
+  // Load insurances once for the reminders banner
+  useEffect(() => {
+    if (!currentUser) {
+      try {
+        const raw = localStorage.getItem('insurances_data');
+        setInsurances(raw ? JSON.parse(raw) : []);
+      } catch { setInsurances([]); }
+      return;
+    }
+    loadInsurances(currentUser.uid).then(setInsurances).catch(() => setInsurances([]));
+  }, [currentUser]);
 
   const displayName = userProfile?.username || currentUser?.displayName || 'there';
 
@@ -102,12 +120,68 @@ const Dashboard: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this mortgage?')) return;
-    if (currentUser) {
-      const updated = mortgages.filter(m => m.id !== id);
-      await saveMortgages(currentUser.uid, updated);
-    } else {
-      const updated = mortgages.filter(m => m.id !== id);
-      localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+    const updated = mortgages.filter(m => m.id !== id);
+    setMortgages(updated);
+    try {
+      if (currentUser) {
+        await saveMortgages(currentUser.uid, updated);
+      } else {
+        localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+      }
+    } catch (err) {
+      setMortgages(mortgages); // revert on failure
+      setSaveError('Failed to delete. Please try again.');
+    }
+  };
+
+  const handleAddInsurance = async (ins: Omit<Insurance, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const newIns: Insurance = { ...ins, id: `ins-${Date.now()}`, createdAt: now, updatedAt: now } as Insurance;
+    const updated = [...insurances, newIns];
+    setInsurances(updated);
+    try {
+      if (currentUser) {
+        await saveInsurances(currentUser.uid, updated);
+      } else {
+        localStorage.setItem('insurances_data', JSON.stringify(updated));
+      }
+    } catch {
+      setInsurances(insurances);
+      setSaveError('Failed to save insurance policy.');
+    }
+  };
+
+  const handleLeasesChange = async (mortgageId: string, leases: Lease[]) => {
+    const updated = mortgages.map(m => m.id !== mortgageId ? m : { ...m, leases, updatedAt: new Date().toISOString() });
+    setMortgages(updated);
+    try {
+      if (currentUser) {
+        await saveMortgages(currentUser.uid, updated);
+      } else {
+        localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+      }
+    } catch {
+      setSaveError('Failed to save lease changes.');
+    }
+  };
+
+  const handleConvertToPrimary = async (mortgage: SavedMortgage) => {
+    if (!window.confirm(`Convert "${mortgage.name}" back to a primary residence? Rental income settings will be kept but the property will be treated as primary.`)) return;
+    const updated = mortgages.map(m => m.id !== mortgage.id ? m : {
+      ...m,
+      propertyType: 'primary' as const,
+      updatedAt: new Date().toISOString(),
+    });
+    setMortgages(updated);
+    try {
+      if (currentUser) {
+        await saveMortgages(currentUser.uid, updated);
+      } else {
+        localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+      }
+    } catch (err) {
+      setMortgages(mortgages);
+      setSaveError('Failed to save conversion. Please try again.');
     }
   };
 
@@ -123,12 +197,18 @@ const Dashboard: React.FC = () => {
       propertyAppreciationRate: rentalSetup.growthRate,
       updatedAt: new Date().toISOString(),
     });
-    if (currentUser) {
-      await saveMortgages(currentUser.uid, updated);
-    } else {
-      localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+    setMortgages(updated);
+    try {
+      if (currentUser) {
+        await saveMortgages(currentUser.uid, updated);
+      } else {
+        localStorage.setItem('mortgage_calculator_local_saves', JSON.stringify(updated));
+      }
+      setConvertingMortgage(null);
+    } catch (err) {
+      setMortgages(mortgages); // revert on failure
+      setSaveError('Failed to save conversion. Please try again.');
     }
-    setConvertingMortgage(null);
   };
 
   // ── Skeleton loader ──────────────────────────────────────────────────────────
@@ -158,6 +238,14 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-surface via-blue-50/20 to-teal-50/10">
       <AppNav />
+      {saveError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between">
+            {saveError}
+            <button onClick={() => setSaveError(null)} className="ml-4 text-red-400 hover:text-red-600 font-bold">✕</button>
+          </div>
+        </div>
+      )}
       <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} />
       <ConvertToInvestmentModal
         isOpen={convertingMortgage !== null}
@@ -218,6 +306,11 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* ── Reminders ────────────────────────────────────────────────────────── */}
+        {mortgages.length > 0 && (
+          <PropertyReminders mortgages={mortgages} insurances={insurances} />
+        )}
+
         {/* ── Portfolio summary ─────────────────────────────────────────────────── */}
         {mortgages.length > 0 && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -272,8 +365,12 @@ const Dashboard: React.FC = () => {
                 <MortgageCard
                   key={mortgage.id}
                   mortgage={mortgage}
+                  linkedInsurances={insurances.filter(i => i.mortgageId === mortgage.id)}
                   onDelete={handleDelete}
                   onConvertToInvestment={setConvertingMortgage}
+                  onConvertToPrimary={handleConvertToPrimary}
+                  onLeasesChange={handleLeasesChange}
+                  onAddInsurance={handleAddInsurance}
                 />
               ))}
               {/* Add another tile */}

@@ -35,5 +35,5 @@ export function useSavedMortgages() {
     return unsub;
   }, [currentUser]);
 
-  return { mortgages, isLoading };
+  return { mortgages, isLoading, setMortgages };
 }

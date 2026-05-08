@@ -7,6 +7,18 @@ export type PayoutFrequency = 'lump_sum' | 'monthly_income' | 'increasing_income
 
 export type PaymentFrequency = 'monthly' | 'quarterly' | 'half_yearly' | 'annual';
 
+// SCD2 snapshot — one row per policy version (premium change, renewal, etc.)
+export interface PolicySnapshot {
+    id: string;
+    premium: number;
+    coverageEndDate: string;
+    provider: string;
+    policyNumber: string;
+    effectiveFrom: string;   // ISO timestamp — when this version became active
+    effectiveTo: string | null; // null = current version
+    changeReason?: string;   // "Renewal", "Premium revised", "Provider changed", etc.
+}
+
 // Base Insurance Interface
 export interface BaseInsurance {
     id: string;
@@ -23,6 +35,10 @@ export interface BaseInsurance {
     notes?: string;
     createdAt: string;
     updatedAt: string;
+    // SCD2 history — previous versions of this policy
+    policyHistory?: PolicySnapshot[];
+    // Link to a saved mortgage / property (for home & property-linked policies)
+    mortgageId?: string;
 }
 
 // For backward compatibility, keep annualPremium as computed property
@@ -110,7 +126,7 @@ export interface AutoInsurance extends BaseInsurance {
 export interface HomeInsurance extends BaseInsurance {
     category: 'home';
     propertyDetails: {
-        type: 'apartment' | 'independent_house' | 'villa';
+        type: 'apartment' | 'independent_house' | 'villa' | 'townhouse';
         builtUpArea: number; // sq ft
         ageOfProperty: number; // years
         constructionType: 'rcc' | 'load_bearing';

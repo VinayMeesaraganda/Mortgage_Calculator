@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Insurance, InsuranceCategory, Claim } from '../types/insurance';
 import { useAuth } from '../contexts/AuthContext';
 import { saveInsurances, loadInsurances, subscribeToInsurances } from '../services/insuranceService';
+import { useSavedMortgages } from '../hooks/useSavedMortgages';
 import { DEBOUNCE_DELAYS } from '../utils/constants';
 import { AddInsuranceModal } from '../components/Insurance/AddInsuranceModal';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -18,6 +19,8 @@ import { exportToCSV, printPortfolio } from '../utils/exportUtils';
 
 const Insurance: React.FC = () => {
   const { currentUser } = useAuth();
+  const { mortgages } = useSavedMortgages();
+  const mortgageOptions = mortgages.map(m => ({ id: m.id, name: m.name }));
   const [insurances, setInsurances] = useState<Insurance[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -324,6 +327,7 @@ const Insurance: React.FC = () => {
             insurances={insurances}
             filteredInsurances={filteredInsurances}
             expiringPolicies={expiringPolicies}
+            mortgages={mortgageOptions}
             onViewPolicy={(insurance) => setViewingInsurance(insurance)}
             onEditPolicy={(insurance) => {
               setEditingInsurance(insurance);
@@ -345,6 +349,7 @@ const Insurance: React.FC = () => {
         }}
         onSave={handleSaveInsurance}
         editInsurance={editingInsurance}
+        savedMortgages={mortgageOptions}
       />
 
       <InsuranceDetailsModal

@@ -70,7 +70,32 @@ export async function saveMortgages(
         homeInsurance: typeof mortgage.homeInsurance === 'number' ? mortgage.homeInsurance : 0,
         homeInsurancePeriod: mortgage.homeInsurancePeriod || 'year',
         pmiAmount: typeof mortgage.pmiAmount === 'number' ? mortgage.pmiAmount : 0,
-        hoaFees: typeof mortgage.hoaFees === 'number' ? mortgage.hoaFees : 0
+        hoaFees: typeof mortgage.hoaFees === 'number' ? mortgage.hoaFees : 0,
+        // Lease tracking (investment properties — full SCD2 history preserved)
+        leases: (mortgage.leases || []).map(lease => ({
+          id: lease.id,
+          mortgageId: lease.mortgageId,
+          tenantName: lease.tenantName,
+          leaseStartDate: lease.leaseStartDate,
+          leaseEndDate: lease.leaseEndDate,
+          monthlyRent: typeof lease.monthlyRent === 'number' ? lease.monthlyRent : 0,
+          deposit: typeof lease.deposit === 'number' ? lease.deposit : 0,
+          status: lease.status,
+          notes: lease.notes || '',
+          createdAt: lease.createdAt,
+          updatedAt: lease.updatedAt,
+          history: (lease.history || []).map(h => ({
+            id: h.id,
+            tenantName: h.tenantName,
+            startDate: h.startDate,
+            endDate: h.endDate,
+            monthlyRent: typeof h.monthlyRent === 'number' ? h.monthlyRent : 0,
+            deposit: typeof h.deposit === 'number' ? h.deposit : 0,
+            effectiveFrom: h.effectiveFrom,
+            effectiveTo: h.effectiveTo,
+            notes: h.notes || '',
+          })),
+        })),
       })),
       updatedAt: new Date().toISOString()
     };

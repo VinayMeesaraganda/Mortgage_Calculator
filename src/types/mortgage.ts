@@ -107,5 +107,8 @@ export interface SavedMortgage {
   homeInsurancePeriod?: 'year' | 'month';
   pmiAmount?: number;
   hoaFees?: number;
+
+  // Lease tracking (investment properties — stored inline with the mortgage)
+  leases?: import('./lease').Lease[];
 }
 
